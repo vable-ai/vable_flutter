@@ -56,8 +56,10 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin {
             }
 
         case "endVoiceChat":
-            Vable.shared.endVoiceChat()
-            result(true)
+            Task { @MainActor in
+                Vable.shared.endVoiceChat()
+                result(true)
+            }
 
         case "isVoiceChatActive":
             result(Vable.shared.isVoiceChatActive())
