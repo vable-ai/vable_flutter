@@ -1,0 +1,3 @@
+rootProject.name = 'vable_flutter'
+// Note: Using file-based AAR dependency instead of project dependency
+// to avoid Gradle version conflicts. See build.gradle dependencies section.
