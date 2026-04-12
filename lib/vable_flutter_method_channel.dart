@@ -71,11 +71,11 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
   }
 
   @override
-  Future<bool> initialize(String publicKey) async {
+  Future<bool> initialize(String publicKey, {String? environment}) async {
     try {
-      final result = await methodChannel.invokeMethod<bool>('initialize', {
-        'publicKey': publicKey,
-      });
+      final args = <String, dynamic>{'publicKey': publicKey};
+      if (environment != null) args['environment'] = environment;
+      final result = await methodChannel.invokeMethod<bool>('initialize', args);
       return result ?? false;
     } on PlatformException catch (e) {
       throw Exception('Failed to initialize Vable: ${e.message}');

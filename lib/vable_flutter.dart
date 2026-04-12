@@ -77,8 +77,9 @@ class Vable {
   static Future<bool> initialize(
     String publicKey, {
     List<VableRoute>? routes,
+    String? environment,
   }) async {
-    final result = await VableFlutterPlatform.instance.initialize(publicKey);
+    final result = await VableFlutterPlatform.instance.initialize(publicKey, environment: environment);
 
     debugPrint('Vable initialized with routes ${routes?.length}');
     // If routes are provided, store and send them to the AI agent

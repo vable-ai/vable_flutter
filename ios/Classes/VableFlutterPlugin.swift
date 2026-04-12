@@ -32,8 +32,14 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin {
                 result(FlutterError(code: "MISSING_ARGUMENT", message: "publicKey is required", details: nil))
                 return
             }
+            let environment: Vable.VableEnvironment
+            if let envString = args["environment"] as? String, envString == "dev" {
+                environment = .development
+            } else {
+                environment = .production
+            }
             do {
-                try Vable.shared.initialize(publicKey: publicKey)
+                try Vable.shared.initialize(publicKey: publicKey, environment: environment)
                 result(true)
             } catch {
                 result(FlutterError(code: "INITIALIZATION_ERROR", message: error.localizedDescription, details: nil))
