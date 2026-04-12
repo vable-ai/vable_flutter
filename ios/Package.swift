@@ -1,35 +1,24 @@
-// swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
-    name: "ios",
-    products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "ios",
-            targets: ["ios"]
-        ),
-    ],
+    name: "vable_flutter",
     platforms: [
-        .iOS("13.0"),
+        .iOS(.v13),
+    ],
+    products: [
+        .library(name: "vable_flutter", targets: ["vable_flutter"]),
     ],
     dependencies: [
-        .package(path: "/Users/jamesfalade/workspace/vable-swift-sdk")
+        .package(url: "https://github.com/vable-ai/vable-swift-sdk.git", revision: "fa1ac27"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "ios",
+            name: "vable_flutter",
             dependencies: [
-                .product(name: "VableSwiftSDK", package: "vable-swift-sdk")
-            ]
-        ),
-        .testTarget(
-            name: "iosTests",
-            dependencies: ["ios"]
+                .product(name: "VableAI", package: "VableAI"),
+            ],
+            path: "Sources/vable_flutter"
         ),
     ]
 )
