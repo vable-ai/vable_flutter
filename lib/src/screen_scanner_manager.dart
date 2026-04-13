@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'screen_scanner.dart';
 import 'models/ui_element.dart';
 import 'models/context_models.dart';
+import 'vable_logger.dart';
 
 /// Manages periodic screen scanning and communication with native Android
 class ScreenScannerManager with WidgetsBindingObserver{
@@ -51,7 +52,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     Duration? scanInterval,
   }) {
     if (_isScanning) {
-      debugPrint('[VableFlutter] Screen scanning already active');
+      VableLogger.debug('[VableFlutter] Screen scanning already active');
       return;
     }
 
@@ -62,7 +63,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     _scanInterval = scanInterval ?? _scanInterval;
     _isScanning = true;
 
-    debugPrint('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
+    VableLogger.info('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
 
     // Perform initial scan immediately
     _performScan();
@@ -77,7 +78,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
   void stopScanning() {
     if (!_isScanning) return;
 
-    debugPrint('[VableFlutter] Stopping screen scanning');
+    VableLogger.info('[VableFlutter] Stopping screen scanning');
     _scanTimer?.cancel();
     _scanTimer = null;
     _isScanning = false;
@@ -92,12 +93,12 @@ class ScreenScannerManager with WidgetsBindingObserver{
   /// Perform a single screen scan and send to native Android
   Future<void> _performScan() async {
     if (_context == null) {
-      debugPrint('[VableFlutter] Context is null - cannot scan. Ensure NavigatorObserver is configured.');
+      VableLogger.error('[VableFlutter] Context is null - cannot scan. Ensure NavigatorObserver is configured.');
       return;
     }
 
     if (!_context!.mounted) {
-      debugPrint('[VableFlutter] Context is unmounted - waiting for navigation update');
+      VableLogger.debug('[VableFlutter] Context is unmounted - waiting for navigation update');
       return;
     }
 
@@ -115,20 +116,20 @@ class ScreenScannerManager with WidgetsBindingObserver{
         ]);
       }
     } catch (e, stackTrace) {
-      debugPrint('[VableFlutter] Error during scan: $e');
-      debugPrint('[VableFlutter] Stack trace: $stackTrace');
+      VableLogger.error('[VableFlutter] Error during scan: $e');
+      VableLogger.error('[VableFlutter] Stack trace: $stackTrace');
     }
   }
 
   /// Log every clickable element that has text content.
   void _logClickableElements(List<ClickableElement> elements) {
     if (elements.isEmpty) {
-      debugPrint('[VableFlutter] No clickable elements with text found.');
+      VableLogger.debug('[VableFlutter] No clickable elements with text found.');
       return;
     }
-    debugPrint('[VableFlutter] Clickable elements (${elements.length}):');
+    VableLogger.debug('[VableFlutter] Clickable elements (${elements.length}):');
     for (int i = 0; i < elements.length; i++) {
-      debugPrint('[VableFlutter]   [$i] ${elements[i]}');
+      VableLogger.debug('[VableFlutter]   [$i] ${elements[i]}');
     }
   }
 
@@ -148,7 +149,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     if (element == null) {
       throw ArgumentError('[VableFlutter] No input element with id "$id" in the last scan.');
     }
-    debugPrint('[VableFlutter] Inputting text into: $element');
+    VableLogger.debug('[VableFlutter] Inputting text into: $element');
 
     // Tap the centre to focus the field.
     _simulateTap(element.center);
@@ -190,7 +191,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     context.visitChildElements(visitor);
 
     if (!updated) {
-      debugPrint('[VableFlutter] inputTextElement: no EditableTextState found at $center');
+      VableLogger.debug('[VableFlutter] inputTextElement: no EditableTextState found at $center');
     }
   }
 
@@ -208,7 +209,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     if (element == null) {
       throw ArgumentError('[VableFlutter] No clickable element with id "$id" in the last scan.');
     }
-    debugPrint('[VableFlutter] Triggering: $element');
+    VableLogger.debug('[VableFlutter] Triggering: $element');
     _simulateTap(element.center);
   }
 
@@ -233,9 +234,9 @@ class ScreenScannerManager with WidgetsBindingObserver{
         'screenContext': jsonData,
       });
 
-      debugPrint('[VableFlutter] Sent ${screenState.elements.length} elements to native');
+      VableLogger.debug('[VableFlutter] Sent ${screenState.elements.length} elements to native');
     } catch (e) {
-      debugPrint('[VableFlutter] Error sending screen context to native: $e');
+      VableLogger.error('[VableFlutter] Error sending screen context to native: $e');
     }
   }
 
@@ -245,7 +246,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     List<ClickableElement> clickables,
     List<InputElement> inputs,
   ) async {
-    debugPrint('[VableFlutter] _sendIntentContextToNative. ${clickables.length} clickables. ${inputs.length} inputs');
+    VableLogger.debug('[VableFlutter] _sendIntentContextToNative. ${clickables.length} clickables. ${inputs.length} inputs');
     try {
       final intents = <VableIntent>[
         VableIntent(
@@ -305,12 +306,12 @@ class ScreenScannerManager with WidgetsBindingObserver{
         'contextUpdate': contextUpdate.toJson(),
       });
 
-      debugPrint(
+      VableLogger.debug(
         '[VableFlutter] Sent intent context: ${clickables.length} clickable(s), '
         '${inputs.length} input(s), ${_routes.length} route(s) to native',
       );
     } catch (e) {
-      debugPrint('[VableFlutter] Error sending intent context to native: $e');
+      VableLogger.error('[VableFlutter] Error sending intent context to native: $e');
     }
   }
 

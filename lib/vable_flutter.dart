@@ -4,6 +4,7 @@ import 'vable_flutter_platform_interface.dart';
 import 'src/screen_scanner_manager.dart';
 import 'src/models/context_models.dart';
 import 'src/route_extractor.dart';
+import 'src/vable_logger.dart';
 
 // Export screen scanner for advanced use cases
 export 'src/screen_scanner_manager.dart';
@@ -11,6 +12,7 @@ export 'src/vable_navigator_observer.dart';
 export 'src/models/ui_element.dart';
 export 'src/models/context_models.dart';
 export 'src/route_extractor.dart';
+export 'src/vable_logger.dart';
 
 /// Supported routing libraries for AI-driven navigation
 enum VableRoutingLibrary {
@@ -79,9 +81,9 @@ class Vable {
     List<VableRoute>? routes,
     String? environment,
   }) async {
-    final result = await VableFlutterPlatform.instance.initialize(publicKey, environment: environment);
+    final result = await VableFlutterPlatform.instance.initialize(publicKey, environment: environment, debugLogging: VableLogger.enabled);
 
-    debugPrint('Vable initialized with routes ${routes?.length}');
+    VableLogger.info('Vable initialized with routes ${routes?.length}');
     // If routes are provided, store and send them to the AI agent
     if (result && routes != null && routes.isNotEmpty) {
       _routes = List.of(routes);
@@ -90,7 +92,7 @@ class Vable {
         await updateIntents(VableContextUpdate(routes: routes));
       } catch (e) {
         // Log error but don't fail initialization
-        debugPrint('Warning: Failed to send routes during initialization: $e');
+        VableLogger.error('Warning: Failed to send routes during initialization: $e');
       }
     }
 
@@ -354,28 +356,28 @@ class Vable {
       _routingLibrary = library;
       _routerInstance = router;
 
-      debugPrint('[VableFlutter] Router configured: ${library.name}');
+      VableLogger.info('[VableFlutter] Router configured: ${library.name}');
 
       if (library != VableRoutingLibrary.native && router == null) {
-        debugPrint('[VableFlutter] ⚠️ Warning: Router instance not provided for ${library.name}');
-        debugPrint('[VableFlutter] Navigation will fail until router is set');
+        VableLogger.error('[VableFlutter] ⚠️ Warning: Router instance not provided for ${library.name}');
+        VableLogger.error('[VableFlutter] Navigation will fail until router is set');
       }
 
       // Basic validation - try to access router without calling methods
       if (router != null) {
-        debugPrint('[VableFlutter] ✓ Router instance provided');
+        VableLogger.debug('[VableFlutter] ✓ Router instance provided');
 
         // Auto-extract routes if enabled
         if (autoExtractRoutes) {
           _autoExtractAndSendRoutes(library, router);
         } else {
-          debugPrint('[VableFlutter] Route auto-extraction disabled');
+          VableLogger.debug('[VableFlutter] Route auto-extraction disabled');
         }
       }
     } catch (e) {
-      debugPrint('[VableFlutter] ❌ Error configuring router: $e');
-      debugPrint('[VableFlutter] This usually means the router is not initialized yet');
-      debugPrint('[VableFlutter] Ensure your router/DI is set up before calling configureRouter()');
+      VableLogger.error('[VableFlutter] ❌ Error configuring router: $e');
+      VableLogger.error('[VableFlutter] This usually means the router is not initialized yet');
+      VableLogger.error('[VableFlutter] Ensure your router/DI is set up before calling configureRouter()');
 
       // Reset to native to prevent crashes
       _routingLibrary = VableRoutingLibrary.native;
@@ -386,7 +388,7 @@ class Vable {
   /// Automatically extract routes from router instance and send to AI
   static void _autoExtractAndSendRoutes(VableRoutingLibrary library, dynamic router) {
     try {
-      debugPrint('[VableFlutter] Attempting to auto-extract routes from ${library.name}...');
+      VableLogger.debug('[VableFlutter] Attempting to auto-extract routes from ${library.name}...');
 
       List<VableRoute>? extractedRoutes;
 
@@ -399,27 +401,27 @@ class Vable {
           break;
         case VableRoutingLibrary.native:
           // Native routes should be provided manually
-          debugPrint('[VableFlutter] Native router - routes should be provided in initialize()');
+          VableLogger.debug('[VableFlutter] Native router - routes should be provided in initialize()');
           break;
       }
 
       if (extractedRoutes != null && extractedRoutes.isNotEmpty) {
-        debugPrint('[VableFlutter] ✓ Extracted ${extractedRoutes.length} routes');
+        VableLogger.info('[VableFlutter] ✓ Extracted ${extractedRoutes.length} routes');
 
         // Store globally, sync to scanner manager, and send to AI
         _routes = List.of(extractedRoutes);
         _screenScannerManager.updateRoutes(_routes);
         updateIntents(VableContextUpdate(routes: extractedRoutes)).then((_) {
-          debugPrint('[VableFlutter] ✓ Routes sent to AI agent');
+          VableLogger.info('[VableFlutter] ✓ Routes sent to AI agent');
         }).catchError((e) {
-          debugPrint('[VableFlutter] ⚠️ Failed to send routes to AI: $e');
+          VableLogger.error('[VableFlutter] ⚠️ Failed to send routes to AI: $e');
         });
       } else {
-        debugPrint('[VableFlutter] No routes extracted - you may need to provide them manually');
+        VableLogger.debug('[VableFlutter] No routes extracted - you may need to provide them manually');
       }
     } catch (e) {
-      debugPrint('[VableFlutter] ⚠️ Failed to auto-extract routes: $e');
-      debugPrint('[VableFlutter] You can provide routes manually in initialize()');
+      VableLogger.error('[VableFlutter] ⚠️ Failed to auto-extract routes: $e');
+      VableLogger.debug('[VableFlutter] You can provide routes manually in initialize()');
     }
   }
 
@@ -436,7 +438,7 @@ class Vable {
           return _parseAutoRouteConfig(routes);
         }
       } catch (e) {
-        debugPrint('[VableFlutter] routes property not accessible: ${e.toString().split('\n')[0]}');
+        VableLogger.debug('[VableFlutter] routes property not accessible: ${e.toString().split('\n')[0]}');
       }
 
       // Method 2: Try accessing config
@@ -446,7 +448,7 @@ class Vable {
           return _parseAutoRouteConfig(config.routes);
         }
       } catch (e) {
-        debugPrint('[VableFlutter] config.routes not accessible: ${e.toString().split('\n')[0]}');
+        VableLogger.debug('[VableFlutter] config.routes not accessible: ${e.toString().split('\n')[0]}');
       }
 
       // Method 3: Try matcher routes
@@ -459,13 +461,13 @@ class Vable {
           }
         }
       } catch (e) {
-        debugPrint('[VableFlutter] matcher.routes not accessible: ${e.toString().split('\n')[0]}');
+        VableLogger.debug('[VableFlutter] matcher.routes not accessible: ${e.toString().split('\n')[0]}');
       }
 
-      debugPrint('[VableFlutter] Could not extract routes from AutoRoute router');
+      VableLogger.debug('[VableFlutter] Could not extract routes from AutoRoute router');
       return null;
     } catch (e) {
-      debugPrint('[VableFlutter] Error extracting AutoRoute routes: $e');
+      VableLogger.error('[VableFlutter] Error extracting AutoRoute routes: $e');
       return null;
     }
   }
@@ -510,7 +512,7 @@ class Vable {
                   name: name ?? _pathToName(fullPath),
                 ));
 
-                debugPrint('[VableFlutter] Extracted route: $fullPath ${name != null ? "($name)" : ""}');
+                VableLogger.debug('[VableFlutter] Extracted route: $fullPath ${name != null ? "($name)" : ""}');
               }
 
               // Recursively extract child routes
@@ -522,18 +524,18 @@ class Vable {
                     vableRoutes.addAll(childRoutes);
                   }
                 } catch (e) {
-                  debugPrint('[VableFlutter] Could not extract children: ${e.toString().split('\n')[0]}');
+                  VableLogger.debug('[VableFlutter] Could not extract children: ${e.toString().split('\n')[0]}');
                 }
               }
             }
           } catch (e) {
             // Skip this route if we can't parse it
-            debugPrint('[VableFlutter] Could not parse route: ${e.toString().split('\n')[0]}');
+            VableLogger.debug('[VableFlutter] Could not parse route: ${e.toString().split('\n')[0]}');
           }
         }
       }
     } catch (e) {
-      debugPrint('[VableFlutter] Error parsing route config: $e');
+      VableLogger.error('[VableFlutter] Error parsing route config: $e');
     }
 
     return vableRoutes;
@@ -589,10 +591,10 @@ class Vable {
         return _parseGoRouterConfig(config.routes);
       }
 
-      debugPrint('[VableFlutter] Could not extract routes from GoRouter');
+      VableLogger.debug('[VableFlutter] Could not extract routes from GoRouter');
       return null;
     } catch (e) {
-      debugPrint('[VableFlutter] Error extracting GoRouter routes: $e');
+      VableLogger.error('[VableFlutter] Error extracting GoRouter routes: $e');
       return null;
     }
   }
@@ -614,7 +616,7 @@ class Vable {
                 name: name ?? _pathToName(path),
               ));
 
-              debugPrint('[VableFlutter] Extracted GoRouter route: $path ${name != null ? "($name)" : ""}');
+              VableLogger.debug('[VableFlutter] Extracted GoRouter route: $path ${name != null ? "($name)" : ""}');
 
               // Recursively extract child routes
               if (route.routes != null && route.routes is List) {
@@ -623,12 +625,12 @@ class Vable {
               }
             }
           } catch (e) {
-            debugPrint('[VableFlutter] Could not parse GoRouter route: ${e.toString().split('\n')[0]}');
+            VableLogger.debug('[VableFlutter] Could not parse GoRouter route: ${e.toString().split('\n')[0]}');
           }
         }
       }
     } catch (e) {
-      debugPrint('[VableFlutter] Error parsing GoRouter config: $e');
+      VableLogger.error('[VableFlutter] Error parsing GoRouter config: $e');
     }
 
     return vableRoutes;
@@ -669,7 +671,7 @@ class Vable {
   /// [callback] The callback to handle navigation events.
   static void setNavigationCallback(VableNavigationCallback? callback) {
     _navigationCallback = callback;
-    debugPrint('[VableFlutter] Navigation callback ${callback != null ? "registered" : "unregistered"}');
+    VableLogger.info('[VableFlutter] Navigation callback ${callback != null ? "registered" : "unregistered"}');
   }
 
   /// Update the navigation context. Typically called by [VableNavigatorObserver]
@@ -687,22 +689,22 @@ class Vable {
   /// ```
   static void updateNavigationContext(BuildContext context) {
     _navigationContext = context;
-    debugPrint('[VableFlutter] Navigation context updated');
+    VableLogger.debug('[VableFlutter] Navigation context updated');
   }
 
   /// Internal method to handle navigation events from the native side.
   /// Called by the platform implementation when the AI agent requests navigation.
   static void handleNavigationEvent(String url) async {
-    debugPrint('[VableFlutter] Navigation event received: $url');
+    VableLogger.info('[VableFlutter] Navigation event received: $url');
 
     // Priority 1: Custom callback (complete override)
     if (_navigationCallback != null) {
-      debugPrint('[VableFlutter] Using custom navigation callback');
+      VableLogger.debug('[VableFlutter] Using custom navigation callback');
       try {
         _navigationCallback!(url);
-        debugPrint('[VableFlutter] ✓ Successfully navigated to $url');
+        VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url');
       } catch (e) {
-        debugPrint('[VableFlutter] ❌ Error in custom navigation callback: $e');
+        VableLogger.error('[VableFlutter] ❌ Error in custom navigation callback: $e');
       }
       return;
     }
@@ -730,28 +732,28 @@ class Vable {
 
   /// Navigate using GoRouter (go_router package)
   static bool _navigateWithGoRouter(String url) {
-    debugPrint('[VableFlutter] Using GoRouter for navigation');
+    VableLogger.debug('[VableFlutter] Using GoRouter for navigation');
 
     if (_routerInstance == null) {
-      debugPrint('[VableFlutter] ❌ GoRouter instance not configured');
-      debugPrint('[VableFlutter] Call: Vable.configureRouter(library: VableRoutingLibrary.goRouter, router: yourRouter)');
+      VableLogger.error('[VableFlutter] ❌ GoRouter instance not configured');
+      VableLogger.error('[VableFlutter] Call: Vable.configureRouter(library: VableRoutingLibrary.goRouter, router: yourRouter)');
       return false;
     }
 
     try {
       // Try using go() method (preferred for GoRouter)
       _routerInstance.go(url);
-      debugPrint('[VableFlutter] ✓ Successfully navigated to $url using GoRouter.go()');
+      VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using GoRouter.go()');
       return true;
     } catch (e) {
       // Fallback to push() method
       try {
         _routerInstance.push(url);
-        debugPrint('[VableFlutter] ✓ Successfully navigated to $url using GoRouter.push()');
+        VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using GoRouter.push()');
         return true;
       } catch (e2) {
-        debugPrint('[VableFlutter] ❌ Error navigating with GoRouter: $e');
-        debugPrint('[VableFlutter] Ensure your GoRouter has route "$url" defined');
+        VableLogger.error('[VableFlutter] ❌ Error navigating with GoRouter: $e');
+        VableLogger.error('[VableFlutter] Ensure your GoRouter has route "$url" defined');
       }
 
       return false;
@@ -760,28 +762,28 @@ class Vable {
 
   /// Navigate using AutoRoute (auto_route package)
   static Future<bool> _navigateWithAutoRoute(String url) async {
-    debugPrint('[VableFlutter] Using AutoRoute for navigation');
+    VableLogger.debug('[VableFlutter] Using AutoRoute for navigation');
 
     if (_routerInstance == null) {
-      debugPrint('[VableFlutter] ❌ AutoRoute instance not configured');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] AutoRoute requires special setup. Use callback instead:');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] // After DI is configured');
-      debugPrint('[VableFlutter] Vable.setNavigationCallback((url) {');
-      debugPrint('[VableFlutter]   final router = getIt<AppRouter>(); // or your DI method');
-      debugPrint('[VableFlutter]   switch (url) {');
-      debugPrint('[VableFlutter]     case "/account":');
-      debugPrint('[VableFlutter]       router.push(const AccountRoute());');
-      debugPrint('[VableFlutter]       break;');
-      debugPrint('[VableFlutter]   }');
-      debugPrint('[VableFlutter] });');
+      VableLogger.error('[VableFlutter] ❌ AutoRoute instance not configured');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] AutoRoute requires special setup. Use callback instead:');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] // After DI is configured');
+      VableLogger.error('[VableFlutter] Vable.setNavigationCallback((url) {');
+      VableLogger.error('[VableFlutter]   final router = getIt<AppRouter>(); // or your DI method');
+      VableLogger.error('[VableFlutter]   switch (url) {');
+      VableLogger.error('[VableFlutter]     case "/account":');
+      VableLogger.error('[VableFlutter]       router.push(const AccountRoute());');
+      VableLogger.error('[VableFlutter]       break;');
+      VableLogger.debug('[VableFlutter]   }');
+      VableLogger.error('[VableFlutter] });');
       return false;
     }
 
     if (_navigationContext == null || !_navigationContext!.mounted) {
-      debugPrint('[VableFlutter] ❌ Navigation context unavailable for AutoRoute');
-      debugPrint('[VableFlutter] Ensure startVoiceChat() was called with a valid context');
+      VableLogger.error('[VableFlutter] ❌ Navigation context unavailable for AutoRoute');
+      VableLogger.error('[VableFlutter] Ensure startVoiceChat() was called with a valid context');
       return false;
     }
 
@@ -796,17 +798,17 @@ class Vable {
           await _routerInstance.navigateNamed(
             url,
             onFailure: (failure) {
-              debugPrint('[VableFlutter] navigateNamed() failed: $failure');
+              VableLogger.error('[VableFlutter] navigateNamed() failed: $failure');
               failed = true;
             },
           );
           if (!failed) {
-            debugPrint('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.navigateNamed().');
+            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.navigateNamed().');
             navigated = true;
           }
         } catch (e) {
           // Method not available or failed, continue
-          debugPrint('[VableFlutter] navigateNamed() not available: ${e.toString().split('\n')[0]}');
+          VableLogger.debug('[VableFlutter] navigateNamed() not available: ${e.toString().split('\n')[0]}');
         }
       }
 
@@ -815,11 +817,11 @@ class Vable {
         try {
           final result = _routerInstance.pushNamed(url);
           if (result != null) {
-            debugPrint('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.pushNamed()');
+            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.pushNamed()');
             navigated = true;
           }
         } catch (e) {
-          debugPrint('[VableFlutter] pushNamed() not available: ${e.toString().split('\n')[0]}');
+          VableLogger.debug('[VableFlutter] pushNamed() not available: ${e.toString().split('\n')[0]}');
         }
       }
 
@@ -828,79 +830,79 @@ class Vable {
         try {
           final result = _routerInstance.push(url);
           if (result != null) {
-            debugPrint('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.push()');
+            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.push()');
             navigated = true;
           }
         } catch (e) {
-          debugPrint('[VableFlutter] push() not available: ${e.toString().split('\n')[0]}');
+          VableLogger.debug('[VableFlutter] push() not available: ${e.toString().split('\n')[0]}');
         }
       }
 
       // If all methods fail, provide helpful error
       if (!navigated) {
-        debugPrint('[VableFlutter] ❌ Could not navigate with AutoRoute');
-        debugPrint('[VableFlutter] ');
-        debugPrint('[VableFlutter] AutoRoute uses code generation and doesn\'t support string-based navigation well.');
-        debugPrint('[VableFlutter] Use a custom callback instead:');
-        debugPrint('[VableFlutter] ');
-        debugPrint('[VableFlutter] Vable.setNavigationCallback((url) {');
-        debugPrint('[VableFlutter]   final router = getIt<AppRouter>();');
-        debugPrint('[VableFlutter]   switch (url) {');
-        debugPrint('[VableFlutter]     case "/account":');
-        debugPrint('[VableFlutter]       router.push(const AccountRoute());');
-        debugPrint('[VableFlutter]       break;');
-        debugPrint('[VableFlutter]   }');
-        debugPrint('[VableFlutter] });');
+        VableLogger.error('[VableFlutter] ❌ Could not navigate with AutoRoute');
+        VableLogger.debug('[VableFlutter] ');
+        VableLogger.error('[VableFlutter] AutoRoute uses code generation and doesn\'t support string-based navigation well.');
+        VableLogger.error('[VableFlutter] Use a custom callback instead:');
+        VableLogger.debug('[VableFlutter] ');
+        VableLogger.error('[VableFlutter] Vable.setNavigationCallback((url) {');
+        VableLogger.error('[VableFlutter]   final router = getIt<AppRouter>();');
+        VableLogger.error('[VableFlutter]   switch (url) {');
+        VableLogger.error('[VableFlutter]     case "/account":');
+        VableLogger.error('[VableFlutter]       router.push(const AccountRoute());');
+        VableLogger.error('[VableFlutter]       break;');
+        VableLogger.debug('[VableFlutter]   }');
+        VableLogger.error('[VableFlutter] });');
       }
       return navigated;
     } catch (e, stackTrace) {
-      debugPrint('[VableFlutter] ❌ Fatal error navigating with AutoRoute: $e');
-      debugPrint('[VableFlutter] This might be a router initialization issue');
-      debugPrint('[VableFlutter] Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+      VableLogger.error('[VableFlutter] ❌ Fatal error navigating with AutoRoute: $e');
+      VableLogger.error('[VableFlutter] This might be a router initialization issue');
+      VableLogger.error('[VableFlutter] Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
       return false;
     }
   }
 
   /// Navigate using native Flutter Navigator
   static bool _navigateWithNativeRouter(String url) {
-    debugPrint('[VableFlutter] Using native Flutter Navigator');
+    VableLogger.debug('[VableFlutter] Using native Flutter Navigator');
 
     if (_navigationContext == null || !_navigationContext!.mounted) {
-      debugPrint('[VableFlutter] ❌ Navigation context unavailable');
-      debugPrint('[VableFlutter] Ensure startVoiceChat() was called with a valid context');
+      VableLogger.error('[VableFlutter] ❌ Navigation context unavailable');
+      VableLogger.error('[VableFlutter] Ensure startVoiceChat() was called with a valid context');
       return false;
     }
 
     try {
       Navigator.of(_navigationContext!).pushNamed(url);
-      debugPrint('[VableFlutter] ✓ Successfully navigated to $url');
+      VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url');
       return true;
     } catch (e) {
-      debugPrint('[VableFlutter] ❌ Error navigating to $url: $e');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] 📋 To fix this, choose one of these options:');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] Option 1 - Configure routes in MaterialApp:');
-      debugPrint('[VableFlutter] MaterialApp(');
-      debugPrint('[VableFlutter]   routes: {');
-      debugPrint('[VableFlutter]     "$url": (context) => YourPage(),');
-      debugPrint('[VableFlutter]   },');
-      debugPrint('[VableFlutter] )');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] Option 2 - Use onGenerateRoute:');
-      debugPrint('[VableFlutter] MaterialApp(');
-      debugPrint('[VableFlutter]   onGenerateRoute: (settings) {');
-      debugPrint('[VableFlutter]     if (settings.name == "$url") {');
-      debugPrint('[VableFlutter]       return MaterialPageRoute(builder: (_) => YourPage());');
-      debugPrint('[VableFlutter]     }');
-      debugPrint('[VableFlutter]   },');
-      debugPrint('[VableFlutter] )');
-      debugPrint('[VableFlutter] ');
-      debugPrint('[VableFlutter] Option 3 - Configure routing library (GoRouter/AutoRoute):');
-      debugPrint('[VableFlutter] Vable.configureRouter(');
-      debugPrint('[VableFlutter]   library: VableRoutingLibrary.goRouter,');
-      debugPrint('[VableFlutter]   router: yourGoRouter,');
-      debugPrint('[VableFlutter] );');
+      VableLogger.error('[VableFlutter] ❌ Error navigating to $url: $e');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] 📋 To fix this, choose one of these options:');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] Option 1 - Configure routes in MaterialApp:');
+      VableLogger.error('[VableFlutter] MaterialApp(');
+      VableLogger.error('[VableFlutter]   routes: {');
+      VableLogger.debug('[VableFlutter]     "$url": (context) => YourPage(),');
+      VableLogger.debug('[VableFlutter]   },');
+      VableLogger.debug('[VableFlutter] )');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] Option 2 - Use onGenerateRoute:');
+      VableLogger.error('[VableFlutter] MaterialApp(');
+      VableLogger.error('[VableFlutter]   onGenerateRoute: (settings) {');
+      VableLogger.error('[VableFlutter]     if (settings.name == "$url") {');
+      VableLogger.error('[VableFlutter]       return MaterialPageRoute(builder: (_) => YourPage());');
+      VableLogger.debug('[VableFlutter]     }');
+      VableLogger.debug('[VableFlutter]   },');
+      VableLogger.debug('[VableFlutter] )');
+      VableLogger.debug('[VableFlutter] ');
+      VableLogger.error('[VableFlutter] Option 3 - Configure routing library (GoRouter/AutoRoute):');
+      VableLogger.debug('[VableFlutter] Vable.configureRouter(');
+      VableLogger.error('[VableFlutter]   library: VableRoutingLibrary.goRouter,');
+      VableLogger.error('[VableFlutter]   router: yourGoRouter,');
+      VableLogger.debug('[VableFlutter] );');
       return false;
     }
   }

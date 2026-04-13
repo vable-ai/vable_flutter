@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'models/ui_element.dart';
+import 'vable_logger.dart';
 
 /// Scans the Flutter widget tree and extracts UI element information
 class FlutterScreenScanner {
@@ -39,7 +40,7 @@ class FlutterScreenScanner {
       // Get the root render object
       final RenderObject? renderObject = context.findRenderObject();
       if (renderObject == null) {
-        debugPrint('[VableFlutter] No render object found');
+        VableLogger.error('[VableFlutter] No render object found');
         return null;
       }
 
@@ -60,7 +61,7 @@ class FlutterScreenScanner {
       _lastInputElements = _buildInputElements();
 
       final elements = _elementsMap.values.toList();
-      debugPrint('[VableFlutter] Screen scan completed. Found ${elements.length} UI elements');
+      VableLogger.debug('[VableFlutter] Screen scan completed. Found ${elements.length} UI elements');
 
       return FlutterScreenState(
         timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -70,8 +71,8 @@ class FlutterScreenScanner {
         metadata: {'source': 'flutter'},
       );
     } catch (e, stackTrace) {
-      debugPrint('[VableFlutter] Error during screen scan: $e');
-      debugPrint('[VableFlutter] Stack trace: $stackTrace');
+      VableLogger.error('[VableFlutter] Error during screen scan: $e');
+      VableLogger.error('[VableFlutter] Stack trace: $stackTrace');
       return null;
     }
   }
@@ -147,7 +148,7 @@ class FlutterScreenScanner {
 
         // Debug logging for navigation elements
         if (element.type == 'navigation' || element.type == 'button' && element.className?.contains('Navigation') == true) {
-          debugPrint('[VableFlutter] Found navigation element: ${element.className} - ${element.type} - clickable: ${element.isClickable} - text: ${element.text} - semantics: ${element.semanticsLabel}');
+          VableLogger.debug('[VableFlutter] Found navigation element: ${element.className} - ${element.type} - clickable: ${element.isClickable} - text: ${element.text} - semantics: ${element.semanticsLabel}');
         }
       }
 
@@ -179,7 +180,7 @@ class FlutterScreenScanner {
         activeClickableIds.removeLast();
       }
     } catch (e) {
-      debugPrint('[VableFlutter] Error processing render object: $e');
+      VableLogger.error('[VableFlutter] Error processing render object: $e');
     }
   }
 
@@ -257,7 +258,7 @@ class FlutterScreenScanner {
 
     if (significantTypes.contains(element.type)) return true;
 
-    // debugPrint('[VableFlutter] Ignoring element ${element.className}');
+    // VableLogger.debug('[VableFlutter] Ignoring element ${element.className}');
 
     // Exclude generic containers without any useful information
     return false;

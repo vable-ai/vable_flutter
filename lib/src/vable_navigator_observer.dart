@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screen_scanner_manager.dart';
 import '../vable_flutter.dart';
+import 'vable_logger.dart';
 
 /// NavigatorObserver that tracks the current screen context and updates
 /// both the ScreenScannerManager and Vable navigation context automatically.
@@ -60,7 +61,7 @@ class VableNavigatorObserver extends NavigatorObserver {
         // Update navigation context for AI-driven navigation
         Vable.updateNavigationContext(_currentContext!);
 
-        debugPrint('[VableFlutter] Navigator context updated');
+        VableLogger.debug('[VableFlutter] Navigator context updated');
       }
     });
   }

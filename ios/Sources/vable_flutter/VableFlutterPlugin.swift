@@ -20,7 +20,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     instance.channel = channel
     registrar.addMethodCallDelegate(instance, channel: channel)
     Vable.shared.setNavigationDelegate(instance)
-    print("[VableFlutterPlugin] Plugin registered")
+    Logger.shared.debug("Plugin registered")
   }
 
   // MARK: - Method Call Handler
@@ -64,6 +64,9 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       result(FlutterError(code: "MISSING_ARGUMENT", message: "publicKey is required", details: nil))
       return
     }
+    let debugLogging = args["debugLogging"] as? Bool ?? false
+    Logger.shared.isDebugEnabled = debugLogging
+
     let environment: Vable.VableEnvironment
     if let envString = args["environment"] as? String, envString == "dev" {
       environment = .development
@@ -73,7 +76,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     do {
       try Vable.shared.initialize(publicKey: publicKey, environment: environment)
       isInitialized = true
-      print("[VableFlutterPlugin] Vable SDK initialized (\(environment.rawValue))")
+      Logger.shared.info("Vable SDK initialized (\(environment.rawValue))")
       result(true)
     } catch {
       result(FlutterError(code: "INITIALIZATION_ERROR", message: error.localizedDescription, details: nil))
@@ -93,7 +96,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       do {
         try await Vable.shared.startVoiceChat(from: viewController)
         await MainActor.run {
-          print("[VableFlutterPlugin] Voice chat started successfully")
+          Logger.shared.info("Voice chat started successfully")
           result(true)
         }
       } catch let error as VableError {
@@ -111,7 +114,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
   private func handleEndVoiceChat(result: @escaping FlutterResult) {
     Task { @MainActor in
       Vable.shared.endVoiceChat()
-      print("[VableFlutterPlugin] Voice chat ended")
+      Logger.shared.info("Voice chat ended")
       result(true)
     }
   }
@@ -172,7 +175,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     channel?.setMethodCallHandler(nil)
     channel = nil
     Vable.shared.setNavigationDelegate(nil)
-    print("[VableFlutterPlugin] Plugin detached")
+    Logger.shared.debug("Plugin detached")
   }
 
   // MARK: - Helpers

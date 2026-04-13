@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "vable-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vable-ai/vable-swift.git",
+      "state" : {
+        "revision" : "0f47c3ac12451fbe6b19d8e85fcf4342962e84fa",
+        "version" : "0.0.1"
+      }
+    },
+    {
+      "identity" : "webrtc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stasel/WebRTC.git",
+      "state" : {
+        "revision" : "117d290e37742ea3a792a345f8ba1ec268eb7090",
+        "version" : "141.0.0"
+      }
+    }
+  ],
+  "version" : 2
+}

@@ -32,7 +32,7 @@ abstract class VableFlutterPlatform extends PlatformInterface {
   /// This must be called before any other Vable methods.
   /// [publicKey] The public key for authentication.
   /// Returns true if initialization was successful.
-  Future<bool> initialize(String publicKey, {String? environment}) {
+  Future<bool> initialize(String publicKey, {String? environment, bool debugLogging = false}) {
     throw UnimplementedError('initialize() has not been implemented.');
   }
 

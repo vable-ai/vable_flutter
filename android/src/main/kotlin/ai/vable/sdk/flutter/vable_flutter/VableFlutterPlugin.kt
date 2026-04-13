@@ -1,11 +1,11 @@
 package ai.vable.sdk.flutter.vable_flutter
 
 import ai.vable.mobile.ClientType
+import ai.vable.mobile.Logger
 import ai.vable.mobile.Vable
 import ai.vable.mobile.VableEventCallback
 import org.json.JSONObject
 import android.app.Application
-import android.util.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -28,9 +28,7 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   private var application: Application? = null
   private val mainHandler = Handler(Looper.getMainLooper())
 
-  companion object {
-    private const val TAG = "VableFlutterPlugin"
-  }
+  private val logger = Logger.createLogger("FlutterPlugin")
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "vable_flutter")
@@ -46,15 +44,15 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           try {
             val args = mapOf("url" to url)
             channel.invokeMethod("onNavigate", args)
-            Log.d(TAG, "Navigation event sent to Flutter: $url")
+            logger.d("Navigation event sent to Flutter: $url")
           } catch (e: Exception) {
-            Log.e(TAG, "Failed to send navigation event to Flutter", e)
+            logger.e("Failed to send navigation event to Flutter", e)
           }
         }
       }
 
       override fun onIntent(id: String, parameters: JSONObject) {
-        Log.d(TAG, "onIntent received: id=$id, parameters=$parameters")
+        logger.d("onIntent received: id=$id, parameters=$parameters")
         mainHandler.post {
           try {
             val parametersMap = parameters.keys().asSequence()
@@ -64,9 +62,9 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
               "parameters" to parametersMap
             )
             channel.invokeMethod("onIntent", args)
-            Log.d(TAG, "onIntent forwarded to Flutter: id=$id")
+            logger.d("onIntent forwarded to Flutter: id=$id")
           } catch (e: Exception) {
-            Log.e(TAG, "Failed to forward onIntent to Flutter", e)
+            logger.e("Failed to forward onIntent to Flutter", e)
           }
         }
       }
@@ -88,6 +86,8 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           result.error("NO_APPLICATION", "Application context not available", null)
           return
         }
+        val debugLogging = call.argument<Boolean>("debugLogging") ?: false
+        Logger.setDebugEnabled(debugLogging)
         try {
           // Pass the current activity to ensure ActivityTracker captures FlutterActivity immediately
           // This is critical for screen scanning to work right away, even if initialize is called
@@ -145,9 +145,9 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           Vable.updateFlutterScreenContext(screenContext)
           result.success(true)
 
-          Log.d(TAG, "Flutter screen context received: ${screenContext["elementCount"]} elements")
+          logger.d("Flutter screen context received: ${screenContext["elementCount"]} elements")
         } catch (e: Exception) {
-          Log.e(TAG, "Error updating Flutter screen context", e)
+          logger.e("Error updating Flutter screen context", e)
           result.error("UPDATE_CONTEXT_ERROR", e.message, null)
         }
       }
@@ -218,9 +218,9 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           Vable.updateIntents(contextUpdate)
           result.success(true)
 
-          Log.d(TAG, "Context update received: ${routes.size} routes, ${intents.size} intents")
+          logger.d("Context update received: ${routes.size} routes, ${intents.size} intents")
         } catch (e: Exception) {
-          Log.e(TAG, "Error updating intents", e)
+          logger.e("Error updating intents", e)
           result.error("UPDATE_INTENTS_ERROR", e.message, null)
         }
       }
@@ -239,11 +239,11 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           }
           Vable.sendToolResult(toolName, toolId, toolResult)
           result.success(true)
-          Log.d(TAG, "Tool result sent: tool=$toolName, id=$toolId")
+          logger.d("Tool result sent: tool=$toolName, id=$toolId")
         } catch (e: IllegalStateException) {
           result.error("NOT_INITIALIZED", e.message, null)
         } catch (e: Exception) {
-          Log.e(TAG, "Error sending tool result", e)
+          logger.e("Error sending tool result", e)
           result.error("SEND_TOOL_RESULT_ERROR", e.message, null)
         }
       }
