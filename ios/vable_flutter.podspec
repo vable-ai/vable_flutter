@@ -15,7 +15,7 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat capabilities 
   s.source           = { :path => '.' }
   s.source_files = 'Sources/vable_flutter/**/*.swift'
   s.dependency 'Flutter'
-  s.dependency 'VableSwiftSDK'
+  s.dependency 'VableAI'
   s.platform = :ios, '13.0'
 
   # Flutter.framework does not contain a i386 slice.
@@ -25,7 +25,7 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat capabilities 
     # Point directly at the xcframework slices so the VableAI module is resolvable
     # at compile time. PODS_ROOT is defined in every pod xcconfig; PODS_XCFRAMEWORKS_BUILD_DIR
     # is only in the aggregate app xcconfig and cannot be used here.
-    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/VableSwiftSDK/VableAI.xcframework/ios-arm64 $(PODS_ROOT)/VableSwiftSDK/VableAI.xcframework/ios-arm64_x86_64-simulator'
+    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) $(PODS_ROOT)/VableAI/VableAI.xcframework/ios-arm64 $(PODS_ROOT)/VableAI/VableAI.xcframework/ios-arm64_x86_64-simulator'
   }
   s.swift_version = '5.0'
 
