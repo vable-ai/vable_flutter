@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "vable_flutter", targets: ["vable_flutter"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/vable-ai/vable-swift.git", from: "0.0.1"),
+        .package(url: "https://github.com/vable-ai/vable-swift.git", from: "0.0.1+1"),
     ],
     targets: [
         .target(

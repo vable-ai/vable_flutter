@@ -63,7 +63,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     _scanInterval = scanInterval ?? _scanInterval;
     _isScanning = true;
 
-    VableLogger.info('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
+    VableLogger.debug('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
 
     // Perform initial scan immediately
     _performScan();
@@ -78,7 +78,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
   void stopScanning() {
     if (!_isScanning) return;
 
-    VableLogger.info('[VableFlutter] Stopping screen scanning');
+    VableLogger.debug('[VableFlutter] Stopping screen scanning');
     _scanTimer?.cancel();
     _scanTimer = null;
     _isScanning = false;

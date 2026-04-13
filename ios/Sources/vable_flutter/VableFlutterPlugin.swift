@@ -202,11 +202,11 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
 
   private func parseContextUpdate(from dict: [String: Any]) throws -> ContextUpdate {
     let intents = try (dict["intents"] as? [[String: Any]] ?? []).map { d -> VableIntent in
-      guard let id = d["id"] as? String, let name = d["name"] as? String else {
+      guard let name = d["name"] as? String else {
         throw NSError(domain: "VableFlutterPlugin", code: -1,
                       userInfo: [NSLocalizedDescriptionKey: "Invalid intent format"])
       }
-      return VableIntent(id: id, name: name, description: d["description"] as? String)
+      return VableIntent(name: name, description: d["description"] as? String)
     }
     let intentStates = try (dict["intentStates"] as? [[String: Any]] ?? []).map { d -> IntentState in
       guard let intentId = d["intentId"] as? String, let state = d["state"] as? String else {
