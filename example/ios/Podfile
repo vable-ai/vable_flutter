@@ -33,7 +33,7 @@ target 'Runner' do
   # Resolves vable_flutter's s.dependency 'VableSwiftSDK' from git
   # until the pod is published to CocoaPods trunk.
   # Remove this line after running: pod trunk push VableSwiftSDK.podspec
-  pod 'VableSwiftSDK', :git => 'https://github.com/vable-ai/vable-swift-sdk.git', :branch => 'main'
+#   pod 'VableSwiftSDK', :git => 'https://github.com/vable-ai/vable-swift-sdk.git', :branch => 'main'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do

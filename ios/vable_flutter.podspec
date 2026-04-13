@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.version          = '0.0.1'
   s.summary          = 'Vable AI Flutter plugin for iOS and Android'
   s.description      = <<-DESC
-Flutter plugin for Vable AI SDK - provides real-time AI voice chat capabilities with WebRTC and screen scanning functionality.
+Flutter plugin for Vable AI SDK - provides real-time AI voice chat with context-aware capabilities.
                        DESC
   s.homepage         = 'https://vable.ai'
   s.license          = { :file => '../LICENSE' }
