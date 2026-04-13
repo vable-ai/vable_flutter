@@ -22,8 +22,6 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat capabilities 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    # Required so Swift can resolve `import VableAI` from VableSwiftSDK's vendored xcframework.
-    # CocoaPods extracts xcframework slices into PODS_XCFRAMEWORKS_BUILD_DIR at build time.
     'FRAMEWORK_SEARCH_PATHS' => '$(inherited) $(PODS_XCFRAMEWORKS_BUILD_DIR)/VableSwiftSDK'
   }
   s.swift_version = '5.0'
