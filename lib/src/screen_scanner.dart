@@ -61,7 +61,9 @@ class FlutterScreenScanner {
       _lastInputElements = _buildInputElements();
 
       final elements = _elementsMap.values.toList();
-      VableLogger.debug('[VableFlutter] Screen scan completed. Found ${elements.length} UI elements');
+      VableLogger.debug(
+        '[VableFlutter] Screen scan completed. Found ${elements.length} UI elements',
+      );
 
       return FlutterScreenState(
         timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -85,13 +87,15 @@ class FlutterScreenScanner {
       if (tokens.isEmpty) continue;
       final element = _elementsMap[entry.key];
       if (element == null) continue;
-      result.add(ClickableElement(
-        id: element.id,
-        type: element.type,
-        bounds: element.bounds,
-        label: tokens.join(' ').trim(),
-        depth: element.depth,
-      ));
+      result.add(
+        ClickableElement(
+          id: element.id,
+          type: element.type,
+          bounds: element.bounds,
+          label: tokens.join(' ').trim(),
+          depth: element.depth,
+        ),
+      );
     }
     // Shallowest first so the most encompassing elements come first.
     result.sort((a, b) => a.depth.compareTo(b.depth));
@@ -104,13 +108,15 @@ class FlutterScreenScanner {
     for (final element in _elementsMap.values) {
       if (element.type != 'input_field') continue;
       final label = element.semanticsLabel ?? element.text ?? 'Input field';
-      result.add(InputElement(
-        id: element.id,
-        type: element.type,
-        bounds: element.bounds,
-        label: label,
-        depth: element.depth,
-      ));
+      result.add(
+        InputElement(
+          id: element.id,
+          type: element.type,
+          bounds: element.bounds,
+          label: label,
+          depth: element.depth,
+        ),
+      );
     }
     result.sort((a, b) => a.depth.compareTo(b.depth));
     return result;
@@ -147,8 +153,12 @@ class FlutterScreenScanner {
         }
 
         // Debug logging for navigation elements
-        if (element.type == 'navigation' || element.type == 'button' && element.className?.contains('Navigation') == true) {
-          VableLogger.debug('[VableFlutter] Found navigation element: ${element.className} - ${element.type} - clickable: ${element.isClickable} - text: ${element.text} - semantics: ${element.semanticsLabel}');
+        if (element.type == 'navigation' ||
+            element.type == 'button' &&
+                element.className?.contains('Navigation') == true) {
+          VableLogger.debug(
+            '[VableFlutter] Found navigation element: ${element.className} - ${element.type} - clickable: ${element.isClickable} - text: ${element.text} - semantics: ${element.semanticsLabel}',
+          );
         }
       }
 
@@ -204,7 +214,8 @@ class FlutterScreenScanner {
     // Determine interaction capabilities
     final isClickable = _isClickable(renderObject);
     final isScrollable = _isScrollable(renderObject);
-    final isEnabled = true; // Flutter doesn't have a simple enabled state like Android
+    final isEnabled =
+        true; // Flutter doesn't have a simple enabled state like Android
     final isVisible = _isVisible(renderObject);
     final isFocusable = _isFocusable(renderObject);
 
@@ -234,7 +245,8 @@ class FlutterScreenScanner {
   bool _shouldIncludeElement(FlutterUIElement element) {
     // Always include elements with meaningful content
     if (element.text != null && element.text!.isNotEmpty) return true;
-    if (element.semanticsLabel != null && element.semanticsLabel!.isNotEmpty) return true;
+    if (element.semanticsLabel != null && element.semanticsLabel!.isNotEmpty)
+      return true;
 
     // Always include interactive elements
     if (element.isClickable) return true;
@@ -288,7 +300,7 @@ class FlutterScreenScanner {
         className.contains('NavigationRail')) {
       return 'navigation';
     } else if (className.contains('NavigationDestination') ||
-               className.contains('BottomNavigationBarItem')) {
+        className.contains('BottomNavigationBarItem')) {
       return 'button'; // Nav items are interactive buttons
     } else if (className.contains('Button') || className.contains('Inkwell')) {
       return 'button';
@@ -316,7 +328,8 @@ class FlutterScreenScanner {
       return 'tab';
     } else if (className.contains('AppBar') || className.contains('ToolBar')) {
       return 'toolbar';
-    } else if (className.contains('Progress') || className.contains('Indicator')) {
+    } else if (className.contains('Progress') ||
+        className.contains('Indicator')) {
       return 'progress_bar';
     } else if (className.contains('Dialog')) {
       return 'dialog';
@@ -429,8 +442,8 @@ class FlutterScreenScanner {
   bool _isVisible(RenderObject renderObject) {
     if (renderObject is RenderBox) {
       return renderObject.hasSize &&
-             renderObject.size.width > 0 &&
-             renderObject.size.height > 0;
+          renderObject.size.width > 0 &&
+          renderObject.size.height > 0;
     }
     return true;
   }
@@ -487,6 +500,6 @@ class FlutterScreenScanner {
 
   /// Generate a unique ID for an element
   String _generateElementId() {
-    return 'flutter_element_${++_idCounter}';
+    return 'e_${++_idCounter}';
   }
 }
