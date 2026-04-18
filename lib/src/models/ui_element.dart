@@ -44,7 +44,7 @@ class FlutterUIElement {
 
   /// Convert to JSON for passing to native Android
   Map<String, dynamic> toJson() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'type': type,
       'bounds': {
@@ -55,22 +55,23 @@ class FlutterUIElement {
         'width': bounds.width,
         'height': bounds.height,
       },
-      'text': text,
-      'contentDescription': semanticsLabel,
-      'className': className,
       'isClickable': isClickable,
       'isScrollable': isScrollable,
       'isEnabled': isEnabled,
       'isVisible': isVisible,
       'isFocusable': isFocusable,
       'isSelected': isSelected,
-      'isChecked': isChecked,
-      'hint': hint,
-      'parentId': parentId,
-      'children': children,
       'depth': depth,
-      'properties': properties,
     };
+    if (text != null) map['text'] = text!;
+    if (semanticsLabel != null) map['contentDescription'] = semanticsLabel!;
+    if (className != null) map['className'] = className!;
+    if (isChecked != null) map['isChecked'] = isChecked!;
+    if (hint != null) map['hint'] = hint!;
+    if (parentId != null) map['parentId'] = parentId!;
+    if (children.isNotEmpty) map['children'] = children;
+    if (properties.isNotEmpty) map['properties'] = properties;
+    return map;
   }
 }
 
@@ -191,18 +192,21 @@ class FlutterScreenState {
 
   /// Convert to JSON for passing to native Android
   Map<String, dynamic> toJson() {
-    return {
-      'timestamp': timestamp,
-      'screen': {
-        'bounds': {
-          'width': screenSize.width,
-          'height': screenSize.height,
-        },
-        'route': routeName,
+    final screen = <String, dynamic>{
+      'bounds': {
+        'width': screenSize.width,
+        'height': screenSize.height,
       },
-      'elements': elements.map((e) => e.toJson()).toList(),
-      'elementCount': elements.length,
-      'metadata': metadata,
     };
+    if (routeName != null) screen['route'] = routeName!;
+
+    final map = <String, dynamic>{
+      'timestamp': timestamp,
+      'screen': screen,
+      'elementCount': elements.length,
+    };
+    if (elements.isNotEmpty) map['elements'] = elements.map((e) => e.toJson()).toList();
+    if (metadata.isNotEmpty) map['metadata'] = metadata;
+    return map;
   }
 }
