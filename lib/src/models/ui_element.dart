@@ -70,7 +70,11 @@ class FlutterUIElement {
     if (hint != null) map['hint'] = hint!;
     if (parentId != null) map['parentId'] = parentId!;
     if (children.isNotEmpty) map['children'] = children;
-    if (properties.isNotEmpty) map['properties'] = properties;
+    if (properties.isNotEmpty) {
+      map['properties'] = properties.map(
+        (k, v) => MapEntry(k, v is num ? v.round() : v),
+      );
+    }
     return map;
   }
 }
