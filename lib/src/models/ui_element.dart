@@ -47,22 +47,22 @@ class FlutterUIElement {
     final map = <String, dynamic>{
       'id': id,
       'type': type,
-      'bounds': {
-        'left': bounds.left,
-        'top': bounds.top,
-        'right': bounds.right,
-        'bottom': bounds.bottom,
-        'width': bounds.width,
-        'height': bounds.height,
-      },
-      'isClickable': isClickable,
-      'isScrollable': isScrollable,
-      'isEnabled': isEnabled,
-      'isVisible': isVisible,
-      'isFocusable': isFocusable,
-      'isSelected': isSelected,
-      'depth': depth,
+      // 'bounds': {
+      //   'left': bounds.left.round(),
+      //   'top': bounds.top.round(),
+      //   'right': bounds.right.round(),
+      //   'bottom': bounds.bottom.round(),
+      //   'width': bounds.width.round(),
+      //   'height': bounds.height.round(),
+      // },
+      // 'depth': depth,
     };
+    if (isClickable) map['isClickable'] = true;
+    if (isScrollable) map['isScrollable'] = true;
+    if (isEnabled) map['isEnabled'] = true;
+    if (isVisible) map['isVisible'] = true;
+    if (isFocusable) map['isFocusable'] = true;
+    if (isSelected) map['isSelected'] = true;
     if (text != null) map['text'] = text!;
     if (semanticsLabel != null) map['contentDescription'] = semanticsLabel!;
     if (className != null) map['className'] = className!;
@@ -107,18 +107,18 @@ class ClickableElement {
   Offset get center => bounds.center;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type,
-        'bounds': {
-          'left': bounds.left,
-          'top': bounds.top,
-          'right': bounds.right,
-          'bottom': bounds.bottom,
-        },
-        'label': label,
-        'center': {'x': center.dx, 'y': center.dy},
-        'depth': depth,
-      };
+    'id': id,
+    'type': type,
+    'bounds': {
+      'left': bounds.left,
+      'top': bounds.top,
+      'right': bounds.right,
+      'bottom': bounds.bottom,
+    },
+    'label': label,
+    'center': {'x': center.dx, 'y': center.dy},
+    'depth': depth,
+  };
 
   @override
   String toString() =>
@@ -156,18 +156,18 @@ class InputElement {
   Offset get center => bounds.center;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type,
-        'bounds': {
-          'left': bounds.left,
-          'top': bounds.top,
-          'right': bounds.right,
-          'bottom': bounds.bottom,
-        },
-        'label': label,
-        'center': {'x': center.dx, 'y': center.dy},
-        'depth': depth,
-      };
+    'id': id,
+    'type': type,
+    'bounds': {
+      'left': bounds.left,
+      'top': bounds.top,
+      'right': bounds.right,
+      'bottom': bounds.bottom,
+    },
+    'label': label,
+    'center': {'x': center.dx, 'y': center.dy},
+    'depth': depth,
+  };
 
   @override
   String toString() =>
@@ -193,10 +193,7 @@ class FlutterScreenState {
   /// Convert to JSON for passing to native Android
   Map<String, dynamic> toJson() {
     final screen = <String, dynamic>{
-      'bounds': {
-        'width': screenSize.width,
-        'height': screenSize.height,
-      },
+      'bounds': {'width': screenSize.width, 'height': screenSize.height},
     };
     if (routeName != null) screen['route'] = routeName!;
 
@@ -205,7 +202,8 @@ class FlutterScreenState {
       'screen': screen,
       'elementCount': elements.length,
     };
-    if (elements.isNotEmpty) map['elements'] = elements.map((e) => e.toJson()).toList();
+    if (elements.isNotEmpty)
+      map['elements'] = elements.map((e) => e.toJson()).toList();
     if (metadata.isNotEmpty) map['metadata'] = metadata;
     return map;
   }
