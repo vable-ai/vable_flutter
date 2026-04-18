@@ -75,7 +75,7 @@ android {
 //        implementation files('../vable-android-library')
 
         // Or use published version:
-         implementation 'ai.vable:vable-android:0.0.1+2'
+        implementation 'ai.vable:vable-android:0.0.1+4'
 
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
