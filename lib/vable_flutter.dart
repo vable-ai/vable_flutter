@@ -886,28 +886,41 @@ class Vable {
     try {
       bool navigated = false;
 
-      // Try method 1: navigateNamed with onFailure callback
+      // Try method 1: navigatePath with onFailure callback
       if (!navigated) {
         try {
           bool failed = false;
-          await _routerInstance.navigateNamed(
+          await _routerInstance.navigatePath(
             url,
             onFailure: (failure) {
-              VableLogger.error('[VableFlutter] navigateNamed() failed: $failure');
+              VableLogger.error('[VableFlutter] navigatePath() failed: $failure');
               failed = true;
             },
           );
           if (!failed) {
-            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.navigateNamed().');
+            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.navigatePath().');
             navigated = true;
           }
         } catch (e) {
           // Method not available or failed, continue
-          VableLogger.debug('[VableFlutter] navigateNamed() not available: ${e.toString().split('\n')[0]}');
+          VableLogger.debug('[VableFlutter] navigatePath() not available: ${e.toString().split('\n')[0]}');
         }
       }
 
-      // Try method 2: pushNamed (more common in AutoRoute)
+      // Try method 2: pushPath
+      if (!navigated) {
+        try {
+          final result = _routerInstance.pushPath(url);
+          if (result != null) {
+            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.pushPath()');
+            navigated = true;
+          }
+        } catch (e) {
+          VableLogger.debug('[VableFlutter] pushPath() not available: ${e.toString().split('\n')[0]}');
+        }
+      }
+
+      // Try method 3: the names older versions of AutoRoute used
       if (!navigated) {
         try {
           final result = _routerInstance.pushNamed(url);
@@ -917,19 +930,6 @@ class Vable {
           }
         } catch (e) {
           VableLogger.debug('[VableFlutter] pushNamed() not available: ${e.toString().split('\n')[0]}');
-        }
-      }
-
-      // Try method 3: push with path string (fallback)
-      if (!navigated) {
-        try {
-          final result = _routerInstance.push(url);
-          if (result != null) {
-            VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url using AutoRoute.push()');
-            navigated = true;
-          }
-        } catch (e) {
-          VableLogger.debug('[VableFlutter] push() not available: ${e.toString().split('\n')[0]}');
         }
       }
 
