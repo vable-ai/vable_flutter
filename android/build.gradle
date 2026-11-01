@@ -24,6 +24,10 @@ buildscript {
 
 allprojects {
     repositories {
+        // Set this to test an Android SDK from publishToMavenLocal
+        if (System.getenv("VABLE_ANDROID_LOCAL")) {
+            mavenLocal()
+        }
         google()
         mavenCentral()
         maven {
@@ -75,7 +79,7 @@ android {
 //        implementation files('../vable-android-library')
 
         // Or use published version:
-        implementation 'ai.vable:vable-android:0.0.1+5'
+        implementation 'ai.vable:vable-android:0.0.1+6'
 
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")

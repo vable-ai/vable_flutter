@@ -50,6 +50,11 @@ class VableNavigatorObserver extends NavigatorObserver {
   }
 
   void _updateContext(Route route) {
+    // A dialog sits on top of the page, which is still the one the user is on
+    if (route is PageRoute) {
+      ScreenScannerManager().updateRouteName(route.settings.name);
+    }
+
     // Wait for the next frame to ensure the route is fully mounted
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (route.navigator?.context != null) {

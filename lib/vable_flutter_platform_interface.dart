@@ -36,6 +36,11 @@ abstract class VableFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('initialize() has not been implemented.');
   }
 
+  /// Mute or unmute the microphone.
+  Future<void> setMicrophoneMuted(bool muted) {
+    throw UnimplementedError('setMicrophoneMuted() has not been implemented.');
+  }
+
   /// Start a voice chat session.
   ///
   /// This will display the voice chat UI and initialize WebRTC and NATS connections.

@@ -42,6 +42,10 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case "isVoiceChatActive":
       result(Vable.shared.isVoiceChatActive())
 
+    case "setMicrophoneMuted":
+      Vable.shared.setMicrophoneMuted((call.arguments as? [String: Any])?["muted"] as? Bool ?? false)
+      result(true)
+
     case "updateFlutterScreenContext":
       handleUpdateFlutterScreenContext(call: call, result: result)
 
@@ -94,7 +98,12 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     }
     Task {
       do {
-        try await Vable.shared.startVoiceChat(from: viewController)
+        // Flutter scans its own widget tree. The UIKit scanner would overwrite it
+        // with the single view Flutter renders into.
+        try await Vable.shared.startVoiceChat(
+          from: viewController,
+          config: Vable.VoiceChatConfig(autoStartScreenScanning: false)
+        )
         await MainActor.run {
           Logger.shared.info("Voice chat started successfully")
           result(true)
@@ -135,13 +144,13 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       result(FlutterError(code: "MISSING_ARGUMENT", message: "contextUpdate is required", details: nil))
       return
     }
-    do {
-      let contextUpdate = try parseContextUpdate(from: contextUpdateMap)
-      Vable.shared.updateIntents(contextUpdate)
-      result(true)
-    } catch {
-      result(FlutterError(code: "UPDATE_INTENTS_ERROR", message: error.localizedDescription, details: nil))
-    }
+    // Sent as is. Parsing it dropped intent parameters, so the agent never got
+    // element ids, and rejected the intent states Dart sends. The server takes
+    // routes as plain paths, and refuses the whole update if they aren't.
+    var context = contextUpdateMap
+    context["routes"] = (contextUpdateMap["routes"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }
+    Vable.shared.updateIntents(ContextUpdate(rawJson: context))
+    result(true)
   }
 
   private func handleSendToolResult(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -166,6 +175,12 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
   public func onIntent(id: String, parameters: [String: Any]) {
     DispatchQueue.main.async { [weak self] in
       self?.channel?.invokeMethod("onIntent", arguments: ["id": id, "parameters": parameters])
+    }
+  }
+
+  public func onVoiceChatEnded() {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onVoiceChatEnded", arguments: nil)
     }
   }
 
@@ -198,38 +213,5 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case .webRTCError:              return "WEBRTC_ERROR"
     case .natsError:                return "NATS_ERROR"
     }
-  }
-
-  private func parseContextUpdate(from dict: [String: Any]) throws -> ContextUpdate {
-    let intents = try (dict["intents"] as? [[String: Any]] ?? []).map { d -> VableIntent in
-      guard let name = d["name"] as? String else {
-        throw NSError(domain: "VableFlutterPlugin", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Invalid intent format"])
-      }
-      return VableIntent(name: name, description: d["description"] as? String)
-    }
-    let intentStates = try (dict["intentStates"] as? [[String: Any]] ?? []).map { d -> IntentState in
-      guard let intentId = d["intentId"] as? String, let state = d["state"] as? String else {
-        throw NSError(domain: "VableFlutterPlugin", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Invalid intent state format"])
-      }
-      return IntentState(intentId: intentId, state: state, metadata: d["metadata"] as? [String: Any])
-    }
-    let intentPrompts = try (dict["intentPrompts"] as? [[String: Any]] ?? []).map { d -> IntentPrompt in
-      guard let intentId = d["intentId"] as? String, let prompt = d["prompt"] as? String else {
-        throw NSError(domain: "VableFlutterPlugin", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Invalid intent prompt format"])
-      }
-      return IntentPrompt(intentId: intentId, prompt: prompt, context: d["context"] as? String)
-    }
-    let routes = try (dict["routes"] as? [[String: Any]] ?? []).map { d -> FlutterRoute in
-      guard let path = d["path"] as? String else {
-        throw NSError(domain: "VableFlutterPlugin", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Invalid route format"])
-      }
-      return FlutterRoute(path: path, name: d["name"] as? String)
-    }
-    return ContextUpdate(intents: intents, intentStates: intentStates,
-                         intentPrompts: intentPrompts, routes: routes)
   }
 }

@@ -3,7 +3,9 @@ package ai.vable.sdk.flutter.vable_flutter
 import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
 import ai.vable.mobile.Vable
+import ai.vable.mobile.VableEnvironment
 import ai.vable.mobile.VableEventCallback
+import org.json.JSONArray
 import org.json.JSONObject
 import android.app.Application
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -13,18 +15,20 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 
 /** VableFlutterPlugin */
-class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
+class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
   /// The MethodChannel that will the communication between Flutter and native Android
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
   /// when the Flutter Engine is detached from the Activity
   private lateinit var channel : MethodChannel
   private var activity: Activity? = null
+  private var activityBinding: ActivityPluginBinding? = null
   private var application: Application? = null
   private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -55,11 +59,9 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
         logger.d("onIntent received: id=$id, parameters=$parameters")
         mainHandler.post {
           try {
-            val parametersMap = parameters.keys().asSequence()
-              .associateWith { parameters.get(it) }
             val args = mapOf(
               "id" to id,
-              "parameters" to parametersMap
+              "parameters" to toPlatformValue(parameters)
             )
             channel.invokeMethod("onIntent", args)
             logger.d("onIntent forwarded to Flutter: id=$id")
@@ -68,7 +70,19 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           }
         }
       }
+
+      override fun onVoiceChatEnded() {
+        mainHandler.post { channel.invokeMethod("onVoiceChatEnded", null) }
+      }
     })
+  }
+
+  /** The method channel can't carry JSON types, and intent parameters can nest. */
+  private fun toPlatformValue(value: Any?): Any? = when (value) {
+    is JSONObject -> value.keys().asSequence().associateWith { toPlatformValue(value.get(it)) }
+    is JSONArray -> (0 until value.length()).map { toPlatformValue(value.get(it)) }
+    JSONObject.NULL -> null
+    else -> value
   }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
@@ -92,7 +106,12 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
           // Pass the current activity to ensure ActivityTracker captures FlutterActivity immediately
           // This is critical for screen scanning to work right away, even if initialize is called
           // after the activity has already started
-          Vable.initialize(publicKey, application!!, ClientType.Flutter)
+          val environment = if (call.argument<String>("environment") == "dev") {
+            VableEnvironment.Development
+          } else {
+            VableEnvironment.Production
+          }
+          Vable.initialize(publicKey, application!!, ClientType.Flutter, environment)
           result.success(true)
         } catch (e: Exception) {
           result.error("INITIALIZATION_ERROR", e.message, null)
@@ -132,6 +151,10 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
         } catch (e: Exception) {
           result.error("CHECK_ERROR", e.message, null)
         }
+      }
+      "setMicrophoneMuted" -> {
+        Vable.setMicrophoneMuted(call.argument<Boolean>("muted") ?: false)
+        result.success(true)
       }
       "updateFlutterScreenContext" -> {
         try {
@@ -260,18 +283,47 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-    activity = binding.activity
+    attachTo(binding)
   }
 
   override fun onDetachedFromActivityForConfigChanges() {
-    activity = null
+    detachFromActivity()
   }
 
   override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-    activity = binding.activity
+    attachTo(binding)
   }
 
   override fun onDetachedFromActivity() {
+    detachFromActivity()
+  }
+
+  private fun attachTo(binding: ActivityPluginBinding) {
+    activity = binding.activity
+    activityBinding = binding
+    binding.addRequestPermissionsResultListener(this)
+  }
+
+  private fun detachFromActivity() {
+    activityBinding?.removeRequestPermissionsResultListener(this)
+    activityBinding = null
     activity = null
+  }
+
+  // Without this the session stops at the permission prompt, because the SDK
+  // never hears the answer. The Activity belongs to Flutter, so only a plugin can pass it on.
+  override fun onRequestPermissionsResult(
+    requestCode: Int,
+    permissions: Array<out String>,
+    grantResults: IntArray
+  ): Boolean {
+    if (requestCode != MICROPHONE_REQUEST_CODE) return false
+    @Suppress("UNCHECKED_CAST")
+    Vable.onPermissionResult(requestCode, permissions as Array<String>, grantResults)
+    return true
+  }
+
+  private companion object {
+    const val MICROPHONE_REQUEST_CODE = 1001
   }
 }

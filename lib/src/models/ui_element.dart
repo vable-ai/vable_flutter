@@ -99,15 +99,19 @@ class ClickableElement {
   /// Widget tree depth of this element.
   final int depth;
 
+  /// Scrolled out of view, so it has to be brought back before it's used.
+  final bool isOffScreen;
+
   ClickableElement({
     required this.id,
     required this.type,
     required this.bounds,
     required this.label,
     required this.depth,
+    this.isOffScreen = false,
   });
 
-  /// Center of the element in global screen coordinates — used for tap simulation.
+  /// Center of the element in global screen coordinates.
   Offset get center => bounds.center;
 
   Map<String, dynamic> toJson() => {
@@ -148,12 +152,16 @@ class InputElement {
   /// Widget tree depth of this element.
   final int depth;
 
+  /// Scrolled out of view, so it has to be brought back before it's used.
+  final bool isOffScreen;
+
   InputElement({
     required this.id,
     required this.type,
     required this.bounds,
     required this.label,
     required this.depth,
+    this.isOffScreen = false,
   });
 
   /// Center of the element in global screen coordinates.

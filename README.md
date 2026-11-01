@@ -15,8 +15,8 @@ A Flutter plugin for integrating Vable AI voice assistant into your Flutter appl
 
 | Platform | Status |
 |----------|--------|
-| Android  | ✅     |
-| iOS      | 🚧 Coming soon |
+| Android  | ✅ API 26 and up |
+| iOS      | ✅ iOS 13 and up |
 
 ## Installation
 
@@ -26,7 +26,7 @@ Add this to your package's `pubspec.yaml` file:
 dependencies:
   vable_flutter:
     git:
-      url: https://github.com/vable-ai/vable-flutter.git
+      url: https://github.com/vable-ai/vable_flutter.git
       ref: v0.0.1
 ```
 
@@ -34,130 +34,99 @@ dependencies:
 
 ### Android
 
-1. Add required permissions to your `android/app/src/main/AndroidManifest.xml`:
+Set `minSdk` to at least 26 and add this to `android/app/build.gradle.kts`. Two of the SDK's dependencies ship the same file, and a new app won't build without it:
 
-```xml
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Required for Vable voice chat -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.INTERNET" />
-
-    <application>
-        ...
-    </application>
-</manifest>
-```
-
-2. Ensure your `android/build.gradle` has the minimum SDK version set to at least 24:
-
-```gradle
+```kotlin
 android {
-    defaultConfig {
-        minSdkVersion 24
+    packaging {
+        resources.excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
     }
 }
+```
+
+The microphone and internet permissions come with the SDK.
+
+### iOS
+
+Add a reason for using the microphone to `ios/Runner/Info.plist`:
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Talk to our assistant</string>
 ```
 
 ## Usage
 
-### Basic Example
-
 ```dart
 import 'package:vable_flutter/vable_flutter.dart';
 
-// Create an instance
-final vable = VableFlutter();
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-// Initialize with your public key
-await vable.initialize('your-public-key-here');
+  await Vable.initialize('your-public-key');
 
-// Start voice chat
-await vable.startVoiceChat();
-
-// Check if voice chat is active
-bool isActive = await vable.isVoiceChatActive();
-
-// End voice chat
-await vable.endVoiceChat();
-```
-
-### Complete Example
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:vable_flutter/vable_flutter.dart';
-
-class VoiceAssistantPage extends StatefulWidget {
-  @override
-  State<VoiceAssistantPage> createState() => _VoiceAssistantPageState();
+  runApp(const MyApp());
 }
 
-class _VoiceAssistantPageState extends State<VoiceAssistantPage> {
-  final _vable = VableFlutter();
-  bool _isInitialized = false;
-  bool _isActive = false;
+// From anywhere below your MaterialApp
+await Vable.startVoiceChat(context);
+await Vable.endVoiceChat();
+```
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeVable();
-  }
+The SDK asks for the microphone when the first session starts. Add `VableNavigatorObserver()` to your app's `navigatorObservers` so the agent knows which page it's on.
 
-  Future<void> _initializeVable() async {
-    try {
-      // Initialize Vable with your public key
-      await _vable.initialize('your-public-key-here');
-      setState(() {
-        _isInitialized = true;
-      });
-    } catch (e) {
-      print('Failed to initialize Vable: $e');
-    }
-  }
+Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the user hangs up or the agent ends the call. `Vable.setMicrophoneMuted(true)` mutes the microphone, during a session or ahead of one.
 
-  Future<void> _toggleVoiceChat() async {
-    try {
-      if (_isActive) {
-        await _vable.endVoiceChat();
-      } else {
-        await _vable.startVoiceChat();
-      }
-      final isActive = await _vable.isVoiceChatActive();
-      setState(() {
-        _isActive = isActive;
-      });
-    } catch (e) {
-      print('Error toggling voice chat: $e');
-    }
-  }
+## What the agent can do
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Voice Assistant'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _isActive ? Icons.mic : Icons.mic_off,
-              size: 64,
-              color: _isActive ? Colors.green : Colors.grey,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isInitialized ? _toggleVoiceChat : null,
-              child: Text(_isActive ? 'End Voice Chat' : 'Start Voice Chat'),
-            ),
-          ],
+The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type and scroll, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent.
+
+## Your app's own actions
+
+Give the agent actions by passing intents with an `onIntent` handler. What the handler returns is what the agent hears back, and throwing tells it the action failed.
+
+```dart
+await Vable.updateIntents(VableContextUpdate(
+  intents: [
+    VableIntent(
+      name: 'addToCart',
+      description: 'Add a product to the cart',
+      parameters: {
+        'productId': IntentParameter(
+          description: 'The product to add',
+          type: 'string',
+          required: true,
         ),
-      ),
-    );
-  }
-}
+      },
+      onIntent: (parameters) async {
+        await cart.add(parameters['productId'] as String);
+        return 'Added. The cart now has ${cart.length} items.';
+      },
+    ),
+  ],
+  intentStates: [
+    VableIntentState(
+      name: 'cart',
+      description: 'What the user has in their cart',
+      value: cart.toJson(),
+    ),
+  ],
+));
 ```
+
+Each call replaces the intents and states you sent before, so send all of them each time.
+
+## Keeping the agent away from a control
+
+The agent can tap and fill in anything on the screen by default, including inside dialogs. Wrap a control in `VableNoOp` to keep it for your users, such as a delete confirmation or a payment button. The agent will ask the user to do it themselves.
+
+```dart
+VableNoOp(
+  child: FilledButton(onPressed: deleteAccount, child: const Text('Delete')),
+)
+```
+
+`VableNoOp` doesn't change your layout or how users interact with the control. Wrap a whole dialog to cover everything inside it.
 
 ## AI-Driven Navigation
 
@@ -217,75 +186,6 @@ The SDK now automatically extracts routes from AutoRoute and GoRouter instances!
 
 📖 **See [AI_NAVIGATION.md](AI_NAVIGATION.md) for complete setup guide for all routing libraries**
 
-## API Reference
-
-### `initialize(String publicKey)`
-
-Initialize the Vable SDK with your public key. This must be called before any other Vable methods.
-
-**Parameters:**
-- `publicKey`: Your Vable public key for authentication
-
-**Returns:** `Future<bool>` - Returns true if initialization was successful
-
-**Throws:** `Exception` if initialization fails
-
-### `startVoiceChat()`
-
-Start a voice chat session. This will display the Vable voice chat overlay and initialize WebRTC and NATS connections.
-
-**Note:** On Android, `RECORD_AUDIO` permission is required. Ensure you request this permission before calling this method.
-
-**Returns:** `Future<bool>` - Returns true if voice chat started successfully
-
-**Throws:** `Exception` if Vable is not initialized or if starting fails
-
-### `endVoiceChat()`
-
-End the current voice chat session. This will close all connections and remove the voice chat overlay.
-
-**Returns:** `Future<bool>` - Returns true if voice chat ended successfully
-
-**Throws:** `Exception` if ending fails
-
-### `isVoiceChatActive()`
-
-Check if a voice chat session is currently active.
-
-**Returns:** `Future<bool>` - Returns true if voice chat is active, false otherwise
-
-### `getPlatformVersion()`
-
-Get the platform version (for debugging purposes).
-
-**Returns:** `Future<String?>` - The platform version string
-
-## Permissions
-
-### Android
-
-The following permissions are required and must be added to your `AndroidManifest.xml`:
-
-- `RECORD_AUDIO`: Required for voice chat functionality
-- `INTERNET`: Required for connecting to Vable servers
-
-You should request the `RECORD_AUDIO` permission at runtime before starting voice chat:
-
-```dart
-import 'package:permission_handler/permission_handler.dart';
-
-Future<void> requestMicrophonePermission() async {
-  final status = await Permission.microphone.request();
-  if (status.isGranted) {
-    // Permission granted, you can start voice chat
-    await vable.startVoiceChat();
-  } else {
-    // Permission denied
-    print('Microphone permission denied');
-  }
-}
-```
-
 ## Getting Your Public Key
 
 To use Vable, you need a public key. Contact Vable support or visit [vable.ai](https://vable.ai) to get your API key.
@@ -295,8 +195,8 @@ To use Vable, you need a public key. Contact Vable support or visit [vable.ai](h
 ### Voice chat won't start
 
 1. Ensure you've called `initialize()` before `startVoiceChat()`
-2. Check that `RECORD_AUDIO` permission is granted
-3. Verify your public key is correct
+2. Check that the user allowed the microphone
+3. Verify your public key is correct, and that `environment` matches it
 4. Check your internet connection
 
 ### "Not initialized" error
@@ -305,20 +205,13 @@ Make sure you call `initialize()` with your public key before using any other me
 
 ### Build errors
 
-1. Ensure your Android `minSdkVersion` is at least 24
-2. Make sure all permissions are added to AndroidManifest.xml
+1. Ensure your Android `minSdk` is at least 26
+2. Add the `packaging` block from the Android setup if the build fails on a duplicate `MANIFEST.MF`
 3. Try running `flutter clean` and rebuilding
 
-## Example App
+## Sample App
 
-See the `example` directory for a complete sample application demonstrating all features of the plugin.
-
-To run the example:
-
-```bash
-cd example
-flutter run
-```
+[vable-flutter-sample](https://github.com/vable-ai/vable-flutter-sample) is an app that uses every feature of the SDK.
 
 ## Contributing
 

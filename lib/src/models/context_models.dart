@@ -1,3 +1,10 @@
+import 'dart:async';
+
+/// Runs an intent when the agent calls it. What it returns is what the agent
+/// hears back, and throwing tells the agent that it failed.
+typedef VableIntentHandler =
+    FutureOr<String?> Function(Map<String, dynamic> parameters);
+
 /// Represents a Flutter route in the application
 class VableRoute {
   /// The route path (e.g., "/home", "/profile")
@@ -25,6 +32,8 @@ class VableRoute {
     );
   }
 }
+
+typedef VableIntentParameter = IntentParameter;
 
 class IntentParameter {
   final String description;
@@ -99,10 +108,14 @@ class VableIntent {
   /// Parameters the AI should extract from the conversation before invoking this intent
   final Map<String, IntentParameter>? parameters;
 
+  /// Runs when the AI invokes this intent
+  final VableIntentHandler? onIntent;
+
   const VableIntent({
     required this.name,
     this.description,
     this.parameters,
+    this.onIntent,
   });
 
   Map<String, dynamic> toJson() {
@@ -193,6 +206,18 @@ class VableContextUpdate {
     this.intentPrompts = const [],
     this.routes = const [],
   });
+
+  VableContextUpdate copyWith({
+    List<VableIntent>? intents,
+    List<VableIntentState>? intentStates,
+  }) {
+    return VableContextUpdate(
+      intents: intents ?? this.intents,
+      intentStates: intentStates ?? this.intentStates,
+      intentPrompts: intentPrompts,
+      routes: routes,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {

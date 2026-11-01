@@ -12,7 +12,11 @@ class MockVableFlutterPlatform
   Future<String?> getPlatformVersion() => Future.value('42');
 
   @override
-  Future<bool> initialize(String publicKey) => Future.value(true);
+  Future<bool> initialize(String publicKey, {String? environment, bool debugLogging = false}) =>
+      Future.value(true);
+
+  @override
+  Future<void> setMicrophoneMuted(bool muted) => Future.value();
 
   @override
   Future<bool> startVoiceChat() => Future.value(true);
@@ -25,9 +29,14 @@ class MockVableFlutterPlatform
 
   @override
   Future<bool> updateIntents(Map<String, dynamic> contextUpdate) => Future.value(true);
+
+  @override
+  Future<bool> sendToolResult(String toolName, String? toolId, String result) => Future.value(true);
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final VableFlutterPlatform initialPlatform = VableFlutterPlatform.instance;
 
   test('$MethodChannelVableFlutter is the default instance', () {

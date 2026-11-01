@@ -26,6 +26,8 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         } else {
           VableLogger.error('[VableFlutter] Warning: onNavigate called without url argument');
         }
+      case 'onVoiceChatEnded':
+        Vable.handleVoiceChatEnded();
       case 'onIntent':
         final intentId = call.arguments['id'] as String?;
         final parameters = (call.arguments['parameters'] as Map?)
@@ -35,30 +37,38 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
           final elementId = parameters['id']?.toString();
           if (elementId != null) {
             try {
-              Vable.triggerElement(elementId);
-              await Future.delayed(Duration(seconds: 1));
-              Vable.sendToolResult(toolName: "clickElement", result: "Element Triggered");
+              final result = await ScreenScannerManager().clickForAgent(elementId);
+              Vable.sendToolResult(toolName: "clickElement", result: result);
             } catch (e) {
-              VableLogger.error('[VableFlutter] triggerElement failed: $e');
+              VableLogger.error('[VableFlutter] clickElement failed: $e');
+              Vable.sendToolResult(toolName: "clickElement", result: "Failed: $e");
             }
           } else {
             VableLogger.error('[VableFlutter] clickElement intent missing "id" parameter');
+            Vable.sendToolResult(toolName: "clickElement", result: "Failed: no element was given");
           }
         } else if (intentId == 'inputText') {
           final elementId = parameters['id']?.toString();
           final text = parameters['text']?.toString();
           if (elementId != null && text != null) {
             try {
-              await Vable.inputTextElement(elementId, text);
-              await Future.delayed(Duration(milliseconds: 500));
-              Vable.sendToolResult(toolName: "inputText", result: "Text Entered");
+              final result = await ScreenScannerManager().inputForAgent(elementId, text);
+              Vable.sendToolResult(toolName: "inputText", result: result);
             } catch (e) {
-              VableLogger.error('[VableFlutter] inputTextElement failed: $e');
+              VableLogger.error('[VableFlutter] inputText failed: $e');
               Vable.sendToolResult(toolName: "inputText", result: "Failed: $e");
             }
           } else {
             VableLogger.error('[VableFlutter] inputText intent missing "id" or "text" parameter');
+            Vable.sendToolResult(toolName: "inputText", result: "Failed: no field or text was given");
           }
+        } else if (intentId == 'scrollScreen') {
+          final result = await ScreenScannerManager().scrollForAgent(
+            down: parameters['direction']?.toString() != 'up',
+          );
+          Vable.sendToolResult(toolName: "scrollScreen", result: result);
+        } else if (intentId != null) {
+          await Vable.handleIntentEvent(intentId, parameters);
         }
       default:
         VableLogger.error('[VableFlutter] Unknown method call: ${call.method}');
@@ -81,6 +91,11 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
     } on PlatformException catch (e) {
       throw Exception('Failed to initialize Vable: ${e.message}');
     }
+  }
+
+  @override
+  Future<void> setMicrophoneMuted(bool muted) async {
+    await methodChannel.invokeMethod<bool>('setMicrophoneMuted', {'muted': muted});
   }
 
   @override

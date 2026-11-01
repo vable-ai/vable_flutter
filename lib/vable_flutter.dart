@@ -9,6 +9,7 @@ import 'src/vable_logger.dart';
 // Export screen scanner for advanced use cases
 export 'src/screen_scanner_manager.dart';
 export 'src/vable_navigator_observer.dart';
+export 'src/vable_no_op.dart';
 export 'src/models/ui_element.dart';
 export 'src/models/context_models.dart';
 export 'src/route_extractor.dart';
@@ -44,6 +45,10 @@ class Vable {
 
   /// Custom navigation callback. If set, this will be called instead of library-specific navigation.
   static VableNavigationCallback? _navigationCallback;
+
+  /// Called when a session ends for any reason, including the user hanging up
+  /// on the voice chat overlay or the agent ending the call.
+  static VoidCallback? onVoiceChatEnded;
 
   /// All routes known to Vable, populated by [initialize] or [configureRouter].
   static List<VableRoute> _routes = [];
@@ -118,18 +123,27 @@ class Vable {
   /// Returns true if voice chat started successfully.
   /// Throws an Exception if Vable is not initialized or if starting fails.
   static Future<bool> startVoiceChat(BuildContext context) async {
-    final result = await VableFlutterPlatform.instance.startVoiceChat();
+    // Scan first, so the native side has the screen and tools before the
+    // microphone opens. Otherwise the agent answers without them.
+    _screenScannerManager.startScanning(
+      context: context,
+      scanInterval: const Duration(seconds: 3),
+    );
 
-    if (result && context.mounted) {
+    final bool result;
+    try {
+      result = await VableFlutterPlatform.instance.startVoiceChat();
+    } catch (_) {
+      _screenScannerManager.stopScanning();
+      rethrow;
+    }
+
+    if (!result) {
+      _screenScannerManager.stopScanning();
+    } else if (context.mounted) {
       // Store the Navigator's context for navigation (never unmounts)
       final navigatorContext = Navigator.maybeOf(context)?.context;
       _navigationContext = navigatorContext ?? context;
-
-      // Start automatic screen scanning when voice chat begins
-      _screenScannerManager.startScanning(
-        context: context,
-        scanInterval: const Duration(seconds: 3),
-      );
     }
 
     return result;
@@ -155,6 +169,20 @@ class Vable {
     _navigationContext = null;
 
     return VableFlutterPlatform.instance.endVoiceChat();
+  }
+
+  /// Internal method called by the platform implementation when a session ends.
+  static void handleVoiceChatEnded() {
+    _screenScannerManager.stopScanning();
+    _navigationContext = null;
+    onVoiceChatEnded?.call();
+  }
+
+  /// Mute or unmute the microphone, during a session or ahead of one.
+  ///
+  /// The agent keeps talking while it's muted, it just can't hear the user.
+  static Future<void> setMicrophoneMuted(bool muted) {
+    return VableFlutterPlatform.instance.setMicrophoneMuted(muted);
   }
 
   /// Check if a voice chat session is currently active.
@@ -256,7 +284,58 @@ class Vable {
   /// Returns true if the update was successful.
   /// Throws an Exception if the update fails.
   static Future<bool> updateIntents(VableContextUpdate contextUpdate) {
-    return VableFlutterPlatform.instance.updateIntents(contextUpdate.toJson());
+    _screenScannerManager.updateHostContext(contextUpdate);
+    return VableFlutterPlatform.instance.updateIntents(
+      _screenScannerManager.fullContext().toJson(),
+    );
+  }
+
+  /// Adds one intent, or replaces the one with the same name. Use this from a
+  /// screen's `initState`, and [unregisterIntent] from its `dispose`, for actions
+  /// that only make sense on that screen.
+  static Future<bool> registerIntent(VableIntent intent) {
+    final host = _screenScannerManager.hostContext;
+    return updateIntents(host.copyWith(
+      intents: [...host.intents.where((i) => i.name != intent.name), intent],
+    ));
+  }
+
+  /// Removes the intent called [name], so the agent stops offering it.
+  static Future<bool> unregisterIntent(String name) {
+    final host = _screenScannerManager.hostContext;
+    return updateIntents(host.copyWith(
+      intents: host.intents.where((i) => i.name != name).toList(),
+    ));
+  }
+
+  /// Adds one piece of app state, or replaces the one with the same name.
+  static Future<bool> updateIntentState(VableIntentState state) {
+    final host = _screenScannerManager.hostContext;
+    return updateIntents(host.copyWith(
+      intentStates: [...host.intentStates.where((s) => s.name != state.name), state],
+    ));
+  }
+
+  /// Runs the app's handler for an intent the agent called and tells the agent
+  /// how it went. Without a result the agent would wait for one.
+  static Future<void> handleIntentEvent(
+    String name,
+    Map<String, dynamic> parameters,
+  ) async {
+    final handler = _screenScannerManager.intentHandler(name);
+    if (handler == null) {
+      VableLogger.error('[VableFlutter] No handler for intent $name. Give it an onIntent.');
+      await sendToolResult(toolName: name, result: "Failed: this app can't do that yet");
+      return;
+    }
+
+    try {
+      final result = await handler(parameters);
+      await sendToolResult(toolName: name, result: result ?? 'Done.');
+    } catch (e) {
+      VableLogger.error('[VableFlutter] Intent $name failed: $e');
+      await sendToolResult(toolName: name, result: 'Failed: $e');
+    }
   }
 
   /// Send a tool result back to the AI agent.
@@ -697,14 +776,18 @@ class Vable {
   static void handleNavigationEvent(String url) async {
     VableLogger.info('[VableFlutter] Navigation event received: $url');
 
+    final before = await _screenScannerManager.captureScreen();
+
     // Priority 1: Custom callback (complete override)
     if (_navigationCallback != null) {
       VableLogger.debug('[VableFlutter] Using custom navigation callback');
       try {
         _navigationCallback!(url);
         VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url');
+        await _sendNavigationResult(url, true, before);
       } catch (e) {
         VableLogger.error('[VableFlutter] ❌ Error in custom navigation callback: $e');
+        await _sendNavigationResult(url, false, before);
       }
       return;
     }
@@ -726,8 +809,20 @@ class Vable {
         break;
     }
 
-    await Future.delayed(Duration(seconds: 1));
-    sendToolResult(toolName: "navigate", result: "Navigated: $navigated");
+    await _sendNavigationResult(url, navigated, before);
+  }
+
+  static Future<void> _sendNavigationResult(
+    String url,
+    bool navigated,
+    VableScreenSnapshot? before,
+  ) async {
+    if (!navigated) {
+      sendToolResult(toolName: "navigate", result: "Failed: couldn't open $url");
+      return;
+    }
+    final change = await _screenScannerManager.describeChangeSince(before);
+    sendToolResult(toolName: "navigate", result: "Went to $url. $change".trim());
   }
 
   /// Navigate using GoRouter (go_router package)
