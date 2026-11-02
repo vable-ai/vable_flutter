@@ -41,6 +41,11 @@ abstract class VableFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('setMicrophoneMuted() has not been implemented.');
   }
 
+  /// Put the call pill at the top or bottom of the screen.
+  Future<void> setCallPillPosition(String position) {
+    throw UnimplementedError('setCallPillPosition() has not been implemented.');
+  }
+
   /// Start a voice chat session.
   ///
   /// This will display the voice chat UI and initialize WebRTC and NATS connections.

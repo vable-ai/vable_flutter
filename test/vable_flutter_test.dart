@@ -19,6 +19,9 @@ class MockVableFlutterPlatform
   Future<void> setMicrophoneMuted(bool muted) => Future.value();
 
   @override
+  Future<void> setCallPillPosition(String position) => Future.value();
+
+  @override
   Future<bool> startVoiceChat() => Future.value(true);
 
   @override

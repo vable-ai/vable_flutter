@@ -1,5 +1,6 @@
 package ai.vable.sdk.flutter.vable_flutter
 
+import ai.vable.mobile.CallPillPosition
 import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
 import ai.vable.mobile.Vable
@@ -124,8 +125,14 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
             result.error("NO_CONTEXT", "Context not available", null)
             return
           }
-          Vable.startVoiceChat(context)
-          result.success(true)
+          // Answer once it's connected, as iOS does, so a request made straight
+          // after starting isn't lost
+          Vable.startVoiceChat(context, listener = { started, error ->
+            mainHandler.post {
+              if (started) result.success(true)
+              else result.error("START_ERROR", error ?: "Voice chat couldn't start", null)
+            }
+          })
         } catch (e: IllegalStateException) {
           result.error("NOT_INITIALIZED", e.message, null)
         } catch (e: Exception) {
@@ -154,6 +161,12 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
       }
       "setMicrophoneMuted" -> {
         Vable.setMicrophoneMuted(call.argument<Boolean>("muted") ?: false)
+        result.success(true)
+      }
+      "setCallPillPosition" -> {
+        Vable.setCallPillPosition(
+          if (call.argument<String>("position") == "top") CallPillPosition.Top else CallPillPosition.Bottom
+        )
         result.success(true)
       }
       "updateFlutterScreenContext" -> {

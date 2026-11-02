@@ -15,6 +15,9 @@ export 'src/models/context_models.dart';
 export 'src/route_extractor.dart';
 export 'src/vable_logger.dart';
 
+/// Where the call pill sits on the screen
+enum VableCallPillPosition { top, bottom }
+
 /// Supported routing libraries for AI-driven navigation
 enum VableRoutingLibrary {
   /// Default Flutter Navigator (Navigator.pushNamed)
@@ -183,6 +186,13 @@ class Vable {
   /// The agent keeps talking while it's muted, it just can't hear the user.
   static Future<void> setMicrophoneMuted(bool muted) {
     return VableFlutterPlatform.instance.setMicrophoneMuted(muted);
+  }
+
+  /// Put the call pill at the top or bottom of the screen, for apps with tabs
+  /// or buttons it would cover. It's at the bottom unless you move it, and
+  /// this takes effect from the next session.
+  static Future<void> setCallPillPosition(VableCallPillPosition position) {
+    return VableFlutterPlatform.instance.setCallPillPosition(position.name);
   }
 
   /// Check if a voice chat session is currently active.

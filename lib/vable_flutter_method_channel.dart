@@ -115,6 +115,11 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
   }
 
   @override
+  Future<void> setCallPillPosition(String position) async {
+    await methodChannel.invokeMethod<bool>('setCallPillPosition', {'position': position});
+  }
+
+  @override
   Future<bool> startVoiceChat() async {
     try {
       final result = await methodChannel.invokeMethod<bool>('startVoiceChat');

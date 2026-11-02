@@ -46,6 +46,11 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       Vable.shared.setMicrophoneMuted((call.arguments as? [String: Any])?["muted"] as? Bool ?? false)
       result(true)
 
+    case "setCallPillPosition":
+      let position = (call.arguments as? [String: Any])?["position"] as? String
+      Vable.shared.setCallPillPosition(position == "top" ? .top : .bottom)
+      result(true)
+
     case "updateFlutterScreenContext":
       handleUpdateFlutterScreenContext(call: call, result: result)
 
