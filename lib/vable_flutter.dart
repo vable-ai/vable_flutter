@@ -830,7 +830,8 @@ class Vable {
       sendToolResult(
         toolName: "navigate",
         result: "Failed: $url came up empty, so it was closed. It needs something "
-            "picked first, so open it by tapping the item on the screen that lists it.",
+            "picked first. Open it yourself by tapping what leads there, such as "
+            "a tab, card or button, rather than asking the user to.",
       );
       return;
     }
