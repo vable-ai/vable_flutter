@@ -598,6 +598,13 @@ void main() {
       expect(result, startsWith('Moved. It now reads "Sugar, 20%"'));
     });
 
+    testWidgets('go whichever way reaches the target', (tester) async {
+      await open(tester, sugar());
+      final result = await act(tester, () => manager.adjustForAgent(slider().id, up: false, target: 80));
+
+      expect(result, startsWith('Moved. It now reads "Sugar, 80%"'));
+    });
+
     testWidgets('stop at the end of their range', (tester) async {
       await open(tester, sugar());
       final result = await act(tester, () => manager.adjustForAgent(slider().id, up: true, steps: 9));

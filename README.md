@@ -79,7 +79,7 @@ Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the use
 
 ## What the agent can do
 
-The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll, move sliders and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent. A slider or field with no label of its own takes the text just before it, as in a `Row` of `Text('Sugar')` and a `Slider`. In debug builds the SDK logs each screen's controls that have no label, so you can find them.
+The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll, move sliders and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent. A slider or field with no label of its own takes the text just before it, as in a `Row` of `Text('Sugar')` and a `Slider`. A `Slider` reads as a percentage unless you give it a `semanticFormatterCallback`, so give it one when its value means something else, such as a quantity. In debug builds the SDK logs each screen's controls that have no label, so you can find them.
 
 The agent can only pass a path to a route, so routes that need an object can't be opened that way. Leave them out with `excludeRoutes` when you call `configureRouter`. If one comes up empty anyway, the SDK leaves it and tells the agent to tap its way there.
 

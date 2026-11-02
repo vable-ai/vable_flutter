@@ -302,6 +302,9 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final before = await captureScreen();
     final limit = target == null ? steps.clamp(1, _maxAdjustSteps) : _maxAdjustSteps;
     var label = element.label;
+    // A target says which way to go, whatever direction was given
+    final current = _numberIn(label);
+    if (target != null && current != null && current != target) up = current < target;
     for (var step = 0; step < limit; step++) {
       if (target != null && _hasReached(label, target, up: up)) break;
       _scanner.adjust(element.id, up: up);
@@ -318,10 +321,15 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Whether a slider's label shows it has reached [target], going [up] or down.
   bool _hasReached(String label, num target, {required bool up}) {
-    final match = RegExp(r'-?\d+(\.\d+)?').allMatches(label).lastOrNull;
-    final value = match == null ? null : num.tryParse(match.group(0)!);
+    final value = _numberIn(label);
     if (value == null) return false;
     return up ? value >= target : value <= target;
+  }
+
+  /// The last number in a slider's label, which is its value.
+  num? _numberIn(String label) {
+    final match = RegExp(r'-?\d+(\.\d+)?').allMatches(label).lastOrNull;
+    return match == null ? null : num.tryParse(match.group(0)!);
   }
 
   /// Scrolls the main list for the agent and returns what came into view, for
@@ -653,7 +661,9 @@ class ScreenScannerManager with WidgetsBindingObserver{
                 ],
               ),
               'target': IntentParameter(
-                description: 'The number it should read when done, if there is one.',
+                description:
+                    'The number it should read when done, in the units its value '
+                    'shows: for "40%", a percentage. It moves whichever way it needs to.',
                 type: 'number',
                 required: false,
                 options: [],
