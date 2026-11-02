@@ -79,7 +79,9 @@ Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the use
 
 ## What the agent can do
 
-The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type and scroll, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent.
+The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent.
+
+The agent can only pass a path to a route, so routes that need an object can't be opened that way. If one comes up empty, the SDK leaves it and tells the agent to tap the item on the screen that lists it.
 
 ## Your app's own actions
 
