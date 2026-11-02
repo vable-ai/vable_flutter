@@ -599,7 +599,11 @@ class Vable {
                 try {
                   final children = route.children;
                   if (children != null) {
-                    final childRoutes = _parseAutoRouteConfig(children.routes, parentPath: fullPath);
+                    // A plain list since AutoRoute 8. Older versions wrap it
+                    final childRoutes = _parseAutoRouteConfig(
+                      children is Iterable ? children : children.routes,
+                      parentPath: fullPath,
+                    );
                     vableRoutes.addAll(childRoutes);
                   }
                 } catch (e) {
@@ -822,6 +826,14 @@ class Vable {
       return;
     }
     final change = await _screenScannerManager.describeChangeSince(before);
+    if (await _screenScannerManager.leaveEmptyScreen()) {
+      sendToolResult(
+        toolName: "navigate",
+        result: "Failed: $url came up empty, so it was closed. It needs something "
+            "picked first, so open it by tapping the item on the screen that lists it.",
+      );
+      return;
+    }
     sendToolResult(toolName: "navigate", result: "Went to $url. $change".trim());
   }
 

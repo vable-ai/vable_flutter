@@ -62,6 +62,9 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
             VableLogger.error('[VableFlutter] inputText intent missing "id" or "text" parameter');
             Vable.sendToolResult(toolName: "inputText", result: "Failed: no field or text was given");
           }
+        } else if (intentId == 'goBack') {
+          final result = await ScreenScannerManager().goBackForAgent();
+          Vable.sendToolResult(toolName: "goBack", result: result);
         } else if (intentId == 'scrollScreen') {
           final result = await ScreenScannerManager().scrollForAgent(
             down: parameters['direction']?.toString() != 'up',

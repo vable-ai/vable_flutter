@@ -14,6 +14,7 @@ const String _elementGoneResult = 'Failed: that element is no longer on the scre
 const String _fieldGoneResult = 'Failed: that field is no longer on the screen';
 const String _disabledResult = "Failed: that's turned off right now, so it can't be used";
 const String _notTypableResult = "Failed: that field can't be typed in";
+const String _noBackResult = "Failed: there's nothing to go back to";
 const String _noScrollResult = "Failed: there's nothing more to scroll to that way";
 const String _blockedResult =
     'Not done: this app keeps that for the user. Ask them to check it and do it themselves.';
@@ -248,6 +249,44 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final before = await captureScreen();
     if (!_scanner.scroll(down: down)) return _noScrollResult;
     return 'Scrolled. ${await describeChangeSince(before)}';
+  }
+
+  /// Goes back for the agent and returns what it found, for its tool result.
+  /// Back arrows are often icons with no label, which would leave it stuck.
+  Future<String> goBackForAgent() async {
+    final navigator = _navigatorWithHistory();
+    if (navigator == null) return _noBackResult;
+
+    final before = await captureScreen();
+    if (!await navigator.maybePop()) return _noBackResult;
+    return 'Went back. ${await describeChangeSince(before)}';
+  }
+
+  /// Leaves a page that came up empty, and returns whether it did. Routes that
+  /// need an item passed to them show nothing when opened by path alone.
+  Future<bool> leaveEmptyScreen() async {
+    final screen = await captureScreen();
+    if (screen == null || screen.texts.isNotEmpty) return false;
+
+    final navigator = _navigatorWithHistory();
+    if (navigator == null) return false;
+    await navigator.maybePop();
+    return true;
+  }
+
+  /// The nearest navigator with something to go back to, which can be the root
+  /// one when the page on top is outside the app's tabs.
+  NavigatorState? _navigatorWithHistory() {
+    if (_context == null || !_context!.mounted) return null;
+
+    final navigators = [
+      Navigator.maybeOf(_context!),
+      Navigator.maybeOf(_context!, rootNavigator: true),
+    ];
+    for (final navigator in navigators) {
+      if (navigator != null && navigator.canPop()) return navigator;
+    }
+    return null;
   }
 
   ClickableElement? _clickable(String id) =>
@@ -486,6 +525,13 @@ class ScreenScannerManager with WidgetsBindingObserver{
                 options: [],
               ),
             },
+          ),
+        if (_navigatorWithHistory() != null)
+          VableIntent(
+            name: 'goBack',
+            description:
+                'Go back to the previous screen, or close the dialog or sheet '
+                'that is open. Use this when there is no back button to tap.',
           ),
         if (_scanner.canScroll)
           VableIntent(

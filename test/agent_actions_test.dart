@@ -335,6 +335,86 @@ void main() {
     });
   });
 
+  group('going back', () {
+    Future<void> openSecondPage(WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('First page'))));
+      tester.state<NavigatorState>(find.byType(Navigator)).push(MaterialPageRoute(
+        builder: (_) => const Scaffold(body: Text('Second page')),
+      ));
+      await tester.pumpAndSettle();
+      await scan(tester);
+    }
+
+    testWidgets('works with no back button on the screen', (tester) async {
+      await openSecondPage(tester);
+
+      final result = await act(tester, () => manager.goBackForAgent());
+
+      expect(result, 'Went back. New on the screen: "First page".');
+      expect(find.text('First page'), findsOneWidget);
+    });
+
+    testWidgets('is only offered when there is somewhere to go', (tester) async {
+      await open(tester, const Text('First page'));
+      expect((sentContexts.last['intents'] as List).map((i) => i['name']), isNot(contains('goBack')));
+
+      await openSecondPage(tester);
+      expect((sentContexts.last['intents'] as List).map((i) => i['name']), contains('goBack'));
+    });
+
+    testWidgets('says when there is nowhere to go', (tester) async {
+      await open(tester, const Text('First page'));
+
+      expect(await manager.goBackForAgent(), "Failed: there's nothing to go back to");
+    });
+
+    testWidgets('leaves a page that came up empty', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('First page'))));
+      tester.state<NavigatorState>(find.byType(Navigator)).push(MaterialPageRoute(
+        builder: (_) => const Scaffold(body: SizedBox.shrink()),
+      ));
+      await tester.pumpAndSettle();
+      await scan(tester);
+
+      bool? left;
+      await act(tester, () async {
+        left = await manager.leaveEmptyScreen();
+        return '';
+      });
+      await tester.pumpAndSettle();
+
+      expect(left, isTrue);
+      expect(find.text('First page'), findsOneWidget);
+    });
+
+    testWidgets('stays on a page with something on it', (tester) async {
+      await openSecondPage(tester);
+
+      bool? left;
+      await act(tester, () async {
+        left = await manager.leaveEmptyScreen();
+        return '';
+      });
+
+      expect(left, isFalse);
+      expect(find.text('Second page'), findsOneWidget);
+    });
+
+    testWidgets('closes a dialog', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('Page'))));
+      showDialog<void>(
+        context: tester.element(find.text('Page')),
+        builder: (_) => const AlertDialog(title: Text('A dialog')),
+      );
+      await tester.pumpAndSettle();
+      await scan(tester);
+
+      await act(tester, () => manager.goBackForAgent());
+
+      expect(find.text('A dialog'), findsNothing);
+    });
+  });
+
   group('scrolling', () {
     testWidgets('finds what is further down a list', (tester) async {
       await open(
@@ -461,6 +541,19 @@ void main() {
     });
   });
 
+  group('routes', () {
+    test('come from nested AutoRoute routes', () {
+      Vable.configureRouter(
+        library: VableRoutingLibrary.autoRoute,
+        router: _FakeRouter([
+          _FakeRoute('/', 'Wrapper', [_FakeRoute('home', 'Home'), _FakeRoute('account', 'Account')]),
+        ]),
+      );
+
+      expect(Vable.routes.map((route) => route.path), ['/home', '/account']);
+    });
+  });
+
   group('intent context', () {
     testWidgets('scans keep what the app sent', (tester) async {
       manager.updateHostContext(
@@ -476,6 +569,20 @@ void main() {
       expect((sentContexts.last['intentStates'] as List).single['name'], 'cart');
     });
   });
+}
+
+class _FakeRouter {
+  _FakeRouter(this.routes);
+
+  final List<_FakeRoute> routes;
+}
+
+class _FakeRoute {
+  _FakeRoute(this.path, this.name, [this.children]);
+
+  final String path;
+  final String name;
+  final List<_FakeRoute>? children;
 }
 
 class _Toggle extends StatefulWidget {
