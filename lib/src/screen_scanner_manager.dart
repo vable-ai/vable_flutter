@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -18,11 +19,13 @@ const String _noBackResult = "Failed: there's nothing to go back to";
 const String _noScrollResult = "Failed: there's nothing more to scroll to that way";
 const String _blockedResult =
     'Not done: this app keeps that for the user. Ask them to check it and do it themselves.';
+const String _notAdjustableResult = "Failed: that can't be moved up or down";
 
 const Duration _settleInterval = Duration(milliseconds: 400);
 const Duration _minSettleTime = Duration(milliseconds: 800);
 const Duration _maxSettleTime = Duration(seconds: 3);
 const Duration _focusTime = Duration(milliseconds: 300);
+const int _maxAdjustSteps = 50;
 
 const int _maxNewTexts = 5;
 const int _maxTextLength = 200;
@@ -54,6 +57,10 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   List<ClickableElement> _lastClickableElements = [];
   List<InputElement> _lastInputElements = [];
+  List<ClickableElement> _lastAdjustableElements = [];
+
+  /// Screens already warned about for unlabelled controls, so it's said once.
+  final Set<String?> _warnedUnlabelled = {};
 
   /// What was last sent, so a screen that hasn't changed isn't sent again.
   String? _lastSentScreen;
@@ -75,6 +82,10 @@ class ScreenScannerManager with WidgetsBindingObserver{
   /// The input elements found during the most recent scan.
   List<InputElement> get lastInputElements =>
       List.unmodifiable(_lastInputElements);
+
+  /// The sliders and steppers found during the most recent scan.
+  List<ClickableElement> get lastAdjustableElements =>
+      List.unmodifiable(_lastAdjustableElements);
 
   /// Called by [Vable] whenever its route list changes so that
   /// [_sendIntentContextToNative] can include up-to-date route context.
@@ -170,13 +181,19 @@ class ScreenScannerManager with WidgetsBindingObserver{
     }
 
     try {
-      final screenState = await _scanner.scanScreen(_context!, routeName: _routeName);
+      final screenState = await _scanner.scanScreen(
+        _context!,
+        routeName: _routeName,
+        isPrivateAt: _isKeptFromAgentAt,
+      );
 
       if (screenState != null) {
         // Grab clickables and inputs while the scanner's state is fresh.
         _lastClickableElements = List.of(_scanner.lastClickableElements);
         _lastInputElements = List.of(_scanner.lastInputElements);
+        _lastAdjustableElements = List.of(_scanner.lastAdjustableElements);
         _logClickableElements(_lastClickableElements);
+        _warnAboutUnlabelled(_scanner.lastUnlabelled);
 
         final screen = _snapshotOf(screenState).signature;
         if (screen == _lastSentScreen) return;
@@ -205,6 +222,30 @@ class ScreenScannerManager with WidgetsBindingObserver{
     }
   }
 
+  /// Tells a developer, in debug builds, about controls the agent can't use
+  /// because nothing says what they are, such as an icon button with no tooltip.
+  void _warnAboutUnlabelled(List<Rect> unlabelled) {
+    if (!kDebugMode || unlabelled.isEmpty || !_warnedUnlabelled.add(_routeName)) return;
+
+    final where = unlabelled
+        .map((rect) => '(${rect.left.round()}, ${rect.top.round()}) '
+            '${rect.width.round()}x${rect.height.round()}')
+        .join(', ');
+    VableLogger.info(
+      '[VableFlutter] ${unlabelled.length} control(s) on ${_routeName ?? 'this screen'} '
+      "have no label, so the agent and screen readers can't use them. Give each a "
+      'tooltip or wrap it in Semantics(label: ...). At: $where',
+    );
+  }
+
+  /// What the agent is told when no element on screen has [id].
+  String _missingResult(String id, String goneResult) {
+    if (!FlutterScreenScanner.isScanId(id)) {
+      return 'Failed: no element has the id "$id". Use an id from the options.';
+    }
+    return _scanner.isDisabled(id) ? _disabledResult : goneResult;
+  }
+
   /// Taps [id] for the agent and returns what happened, for its tool result.
   ///
   /// Scans first so it acts on what's on screen now, not what the agent last saw.
@@ -212,9 +253,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final known = _clickable(id);
     await _performScan();
     final element = _clickable(id) ?? _sameElement(_lastClickableElements, known?.label, (e) => e.label);
-    if (element == null) {
-      return _scanner.isDisabled(id) ? _disabledResult : _elementGoneResult;
-    }
+    if (element == null) return _missingResult(id, _elementGoneResult);
 
     final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
     if (_isBlockedAt(center)) return _blockedResult;
@@ -230,9 +269,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final known = _input(id);
     await _performScan();
     final element = _input(id) ?? _sameElement(_lastInputElements, known?.label, (e) => e.label);
-    if (element == null) {
-      return _scanner.isDisabled(id) ? _disabledResult : _fieldGoneResult;
-    }
+    if (element == null) return _missingResult(id, _fieldGoneResult);
 
     final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
     if (_isBlockedAt(center)) return _blockedResult;
@@ -240,6 +277,51 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final before = await captureScreen();
     if (!await _typeInto(element.id, text)) return _notTypableResult;
     return 'Filled in. ${await describeChangeSince(before)}';
+  }
+
+  /// Moves a slider for the agent, by [steps] or until it reaches [target], and
+  /// returns where it ended up, for its tool result.
+  Future<String> adjustForAgent(
+    String id, {
+    required bool up,
+    int steps = 1,
+    num? target,
+  }) async {
+    final known = _adjustable(id);
+    await _performScan();
+    final element = _adjustable(id) ??
+        _sameElement(_lastAdjustableElements, known?.label, (e) => e.label);
+    if (element == null) {
+      if (_clickable(id) != null || _input(id) != null) return _notAdjustableResult;
+      return _missingResult(id, _elementGoneResult);
+    }
+
+    final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
+    if (_isBlockedAt(center)) return _blockedResult;
+
+    final before = await captureScreen();
+    final limit = target == null ? steps.clamp(1, _maxAdjustSteps) : _maxAdjustSteps;
+    var label = element.label;
+    for (var step = 0; step < limit; step++) {
+      if (target != null && _hasReached(label, target, up: up)) break;
+      _scanner.adjust(element.id, up: up);
+      await WidgetsBinding.instance.endOfFrame;
+      await _performScan();
+      final moved = _adjustable(element.id)?.label;
+      // It's at the end of its range
+      if (moved == null || moved == label) break;
+      label = moved;
+    }
+    final change = await describeChangeSince(before);
+    return 'Moved. It now reads "$label". $change'.trim();
+  }
+
+  /// Whether a slider's label shows it has reached [target], going [up] or down.
+  bool _hasReached(String label, num target, {required bool up}) {
+    final match = RegExp(r'-?\d+(\.\d+)?').allMatches(label).lastOrNull;
+    final value = match == null ? null : num.tryParse(match.group(0)!);
+    if (value == null) return false;
+    return up ? value >= target : value <= target;
   }
 
   /// Scrolls the main list for the agent and returns what came into view, for
@@ -295,6 +377,9 @@ class ScreenScannerManager with WidgetsBindingObserver{
   InputElement? _input(String id) =>
       _lastInputElements.cast<InputElement?>().firstWhere((e) => e?.id == id, orElse: () => null);
 
+  ClickableElement? _adjustable(String id) =>
+      _lastAdjustableElements.cast<ClickableElement?>().firstWhere((e) => e?.id == id, orElse: () => null);
+
   /// A rebuild can replace an element between the agent seeing it and acting on
   /// it. Only a label that can't mean anything else counts as the same element.
   T? _sameElement<T>(List<T> elements, String? label, String Function(T) labelOf) {
@@ -334,7 +419,10 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Hit tests like a real tap, because a tap lands by position: a clickable
   /// parent's centre can sit on a [VableNoOp] that it doesn't otherwise know of.
-  bool _isBlockedAt(Offset position) {
+  bool _isBlockedAt(Offset position) => _isKeptFromAgentAt(position);
+
+  /// Whether a [VableNoOp] covers [position]. Fields inside one are private too.
+  bool _isKeptFromAgentAt(Offset position) {
     final result = HitTestResult();
     WidgetsBinding.instance.hitTestInView(
       result,
@@ -351,7 +439,11 @@ class ScreenScannerManager with WidgetsBindingObserver{
   Future<VableScreenSnapshot?> captureScreen() async {
     if (_context == null || !_context!.mounted) return null;
 
-    final screenState = await _scanner.scanScreen(_context!, routeName: _routeName);
+    final screenState = await _scanner.scanScreen(
+      _context!,
+      routeName: _routeName,
+      isPrivateAt: _isKeptFromAgentAt,
+    );
     if (screenState == null) return null;
 
     return _snapshotOf(screenState);
@@ -533,6 +625,47 @@ class ScreenScannerManager with WidgetsBindingObserver{
                 'Go back to the previous screen, or close the dialog or sheet '
                 'that is open. Use this when there is no back button to tap.',
           ),
+        if (_lastAdjustableElements.isNotEmpty)
+          VableIntent(
+            name: 'adjustSlider',
+            description:
+                'Move a slider or stepper on the current screen up or down. Give '
+                'a "target" to move it until it reads that number, or "steps" '
+                'to move it that many notches.',
+            parameters: {
+              'id': IntentParameter(
+                description:
+                    'The scan ID of the slider. Each option lists its label and '
+                    'current value alongside its id value.',
+                type: 'string',
+                required: true,
+                options: _lastAdjustableElements
+                    .map((e) => ToolParameterOption(label: e.label, value: e.id))
+                    .toList(),
+              ),
+              'direction': IntentParameter(
+                description: 'Which way to move it.',
+                type: 'string',
+                required: true,
+                options: [
+                  ToolParameterOption(label: 'Up', value: 'up'),
+                  ToolParameterOption(label: 'Down', value: 'down'),
+                ],
+              ),
+              'target': IntentParameter(
+                description: 'The number it should read when done, if there is one.',
+                type: 'number',
+                required: false,
+                options: [],
+              ),
+              'steps': IntentParameter(
+                description: 'How many notches to move it when there is no target. Defaults to 1.',
+                type: 'number',
+                required: false,
+                options: [],
+              ),
+            },
+          ),
         if (_scanner.canScroll)
           VableIntent(
             name: 'scrollScreen',
@@ -561,7 +694,11 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Manually trigger a screen scan
   Future<FlutterScreenState?> scanNow(BuildContext context) async {
-    return await _scanner.scanScreen(context, routeName: _routeName);
+    return await _scanner.scanScreen(
+      context,
+      routeName: _routeName,
+      isPrivateAt: _isKeptFromAgentAt,
+    );
   }
 
   /// Check if scanning is active

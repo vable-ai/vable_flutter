@@ -426,10 +426,13 @@ class Vable {
   /// [library] The routing library you're using
   /// [router] The router instance from your app (e.g., GoRouter, StackRouter)
   /// [autoExtractRoutes] Automatically extract and send routes to AI (default: true)
+  /// [excludeRoutes] Paths to leave out of the extracted routes, such as pages
+  /// that need an item passed to them and show nothing when opened by path
   static void configureRouter({
     required VableRoutingLibrary library,
     dynamic router,
     bool autoExtractRoutes = true,
+    List<String> excludeRoutes = const [],
   }) {
     try {
       _routingLibrary = library;
@@ -448,7 +451,7 @@ class Vable {
 
         // Auto-extract routes if enabled
         if (autoExtractRoutes) {
-          _autoExtractAndSendRoutes(library, router);
+          _autoExtractAndSendRoutes(library, router, excludeRoutes);
         } else {
           VableLogger.debug('[VableFlutter] Route auto-extraction disabled');
         }
@@ -465,7 +468,11 @@ class Vable {
   }
 
   /// Automatically extract routes from router instance and send to AI
-  static void _autoExtractAndSendRoutes(VableRoutingLibrary library, dynamic router) {
+  static void _autoExtractAndSendRoutes(
+    VableRoutingLibrary library,
+    dynamic router,
+    List<String> excludeRoutes,
+  ) {
     try {
       VableLogger.debug('[VableFlutter] Attempting to auto-extract routes from ${library.name}...');
 
@@ -483,6 +490,10 @@ class Vable {
           VableLogger.debug('[VableFlutter] Native router - routes should be provided in initialize()');
           break;
       }
+
+      extractedRoutes = extractedRoutes
+          ?.where((route) => !excludeRoutes.contains(route.path))
+          .toList();
 
       if (extractedRoutes != null && extractedRoutes.isNotEmpty) {
         VableLogger.info('[VableFlutter] ✓ Extracted ${extractedRoutes.length} routes');

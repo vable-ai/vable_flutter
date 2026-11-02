@@ -65,6 +65,19 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         } else if (intentId == 'goBack') {
           final result = await ScreenScannerManager().goBackForAgent();
           Vable.sendToolResult(toolName: "goBack", result: result);
+        } else if (intentId == 'adjustSlider') {
+          final elementId = parameters['id']?.toString();
+          if (elementId == null) {
+            Vable.sendToolResult(toolName: "adjustSlider", result: "Failed: no slider was given");
+          } else {
+            final result = await ScreenScannerManager().adjustForAgent(
+              elementId,
+              up: parameters['direction']?.toString() != 'down',
+              steps: num.tryParse('${parameters['steps']}')?.toInt() ?? 1,
+              target: num.tryParse('${parameters['target']}'),
+            );
+            Vable.sendToolResult(toolName: "adjustSlider", result: result);
+          }
         } else if (intentId == 'scrollScreen') {
           final result = await ScreenScannerManager().scrollForAgent(
             down: parameters['direction']?.toString() != 'up',

@@ -8,15 +8,20 @@ const _channel = MethodChannel('vable_flutter');
 void main() {
   final manager = ScreenScannerManager();
   late List<Map<String, dynamic>> sentContexts;
+  late List<String> sentScreens;
 
   setUp(() {
     sentContexts = [];
+    sentScreens = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_channel, (call) async {
       if (call.method == 'updateIntents') {
         sentContexts.add(
           (call.arguments['contextUpdate'] as Map).cast<String, dynamic>(),
         );
+      }
+      if (call.method == 'updateFlutterScreenContext') {
+        sentScreens.add('${call.arguments['screenContext']}');
       }
       return true;
     });
@@ -552,6 +557,101 @@ void main() {
 
       expect(Vable.routes.map((route) => route.path), ['/home', '/account']);
     });
+
+    test('leave out the ones the app excludes', () {
+      Vable.configureRouter(
+        library: VableRoutingLibrary.autoRoute,
+        router: _FakeRouter([_FakeRoute('/home', 'Home'), _FakeRoute('/errand/details', 'Details')]),
+        excludeRoutes: ['/errand/details'],
+      );
+
+      expect(Vable.routes.map((route) => route.path), ['/home']);
+    });
+  });
+
+  group('sliders', () {
+    Widget sugar() => const Row(
+          children: [Text('Sugar'), Expanded(child: _Sugar())],
+        );
+
+    ClickableElement slider() => manager.lastAdjustableElements.single;
+
+    testWidgets('are offered with the text beside them and their value', (tester) async {
+      await open(tester, sugar());
+
+      expect(slider().label, 'Sugar, 40%');
+      final names = (sentContexts.last['intents'] as List).map((intent) => intent['name']);
+      expect(names, contains('adjustSlider'));
+    });
+
+    testWidgets('move by steps', (tester) async {
+      await open(tester, sugar());
+      final result = await act(tester, () => manager.adjustForAgent(slider().id, up: true, steps: 2));
+
+      expect(result, startsWith('Moved. It now reads "Sugar, 80%"'));
+    });
+
+    testWidgets('move to a target and stop there', (tester) async {
+      await open(tester, sugar());
+      final result = await act(tester, () => manager.adjustForAgent(slider().id, up: false, target: 20));
+
+      expect(result, startsWith('Moved. It now reads "Sugar, 20%"'));
+    });
+
+    testWidgets('stop at the end of their range', (tester) async {
+      await open(tester, sugar());
+      final result = await act(tester, () => manager.adjustForAgent(slider().id, up: true, steps: 9));
+
+      expect(result, startsWith('Moved. It now reads "Sugar, 100%"'));
+    });
+
+    testWidgets('are kept from the agent inside VableNoOp', (tester) async {
+      await open(tester, const VableNoOp(child: _Sugar()));
+      final result = await act(tester, () => manager.adjustForAgent(slider().id, up: true));
+
+      expect(result, startsWith('Not done'));
+    });
+  });
+
+  group('private values', () {
+    Widget field(String label, String value, {bool noOp = false}) {
+      final input = SizedBox(
+        width: 200,
+        child: TextField(
+          controller: TextEditingController(text: value),
+          decoration: InputDecoration(labelText: label),
+        ),
+      );
+      return noOp ? VableNoOp(child: input) : input;
+    }
+
+    testWidgets('of card numbers are not sent', (tester) async {
+      await open(tester, field('Card number', '4111111111111111'));
+
+      expect(sentScreens.last, isNot(contains('4111111111111111')));
+      expect(sentScreens.last, contains('private'));
+    });
+
+    testWidgets('of fields inside VableNoOp are not sent', (tester) async {
+      await open(tester, field('Note', 'my secret note', noOp: true));
+
+      expect(sentScreens.last, isNot(contains('my secret note')));
+    });
+
+    testWidgets('of other fields are sent', (tester) async {
+      await open(tester, field('Full name', 'Ada Lovelace'));
+
+      expect(sentScreens.last, contains('Ada Lovelace'));
+    });
+  });
+
+  group('made-up ids', () {
+    testWidgets('are called out, not reported as gone', (tester) async {
+      await open(tester, ElevatedButton(onPressed: () {}, child: const Text('Save')));
+      final result = await act(tester, () => manager.clickForAgent('e17'));
+
+      expect(result, 'Failed: no element has the id "e17". Use an id from the options.');
+    });
   });
 
   group('intent context', () {
@@ -583,6 +683,25 @@ class _FakeRoute {
   final String path;
   final String name;
   final List<_FakeRoute>? children;
+}
+
+class _Sugar extends StatefulWidget {
+  const _Sugar();
+
+  @override
+  State<_Sugar> createState() => _SugarState();
+}
+
+class _SugarState extends State<_Sugar> {
+  double _value = 0.4;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 300,
+      child: Slider(value: _value, divisions: 5, onChanged: (value) => setState(() => _value = value)),
+    );
+  }
 }
 
 class _Toggle extends StatefulWidget {

@@ -79,9 +79,11 @@ Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the use
 
 ## What the agent can do
 
-The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent.
+The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll, move sliders and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent. A slider or field with no label of its own takes the text just before it, as in a `Row` of `Text('Sugar')` and a `Slider`. In debug builds the SDK logs each screen's controls that have no label, so you can find them.
 
-The agent can only pass a path to a route, so routes that need an object can't be opened that way. If one comes up empty, the SDK leaves it and tells the agent to tap the item on the screen that lists it.
+The agent can only pass a path to a route, so routes that need an object can't be opened that way. Leave them out with `excludeRoutes` when you call `configureRouter`. If one comes up empty anyway, the SDK leaves it and tells the agent to tap its way there.
+
+The agent never sees what's typed in password fields, fields inside `VableNoOp`, or fields whose label looks like a card number, CVV, PIN, account number or ID number. It still sees that the field is there.
 
 ## Your app's own actions
 
@@ -169,6 +171,8 @@ final router = getIt<AppRouter>();
 Vable.configureRouter(
   library: VableRoutingLibrary.autoRoute,
   router: router,
+  // Pages that need an item passed to them can't be opened by path
+  excludeRoutes: ['/order/details'],
 );
 
 // Set up navigation callback

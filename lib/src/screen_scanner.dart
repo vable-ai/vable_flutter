@@ -8,6 +8,17 @@ import 'vable_logger.dart';
 const Duration _firstBuildTimeout = Duration(seconds: 1);
 const String _idPrefix = 's_';
 
+// Fields whose values are hidden even when the app doesn't mark them, because
+// they're the kind of thing that should never reach a model
+final RegExp _privateFieldLabel = RegExp(
+  r'card ?number|\bcard\b|cvv|cvc|security code|\bpin\b|account number|iban|'
+  r'routing|sort code|\bssn\b|social security|passport|\bbvn\b|\bnin\b|password|passcode',
+  caseSensitive: false,
+);
+
+/// Whether the field at a point on screen is one the app keeps private.
+typedef VablePrivateTest = bool Function(Offset position);
+
 /// Reads the screen from Flutter's semantics tree, the same view a screen reader
 /// gets. The render tree holds every page in the stack and every hidden tab, and
 /// says nothing about labels or disabled controls. Semantics leaves those out,
@@ -19,6 +30,8 @@ class FlutterScreenScanner {
   List<FlutterUIElement> _elements = [];
   List<ClickableElement> _lastClickableElements = [];
   List<InputElement> _lastInputElements = [];
+  List<ClickableElement> _lastAdjustableElements = [];
+  List<Rect> _lastUnlabelled = [];
 
   // Largest first, so scrolling moves the main list
   List<_Scrollable> _scrollables = [];
@@ -30,6 +43,15 @@ class FlutterScreenScanner {
   /// The input elements found during the most recent [scanScreen] call.
   List<InputElement> get lastInputElements =>
       List.unmodifiable(_lastInputElements);
+
+  /// Sliders and other controls that move up and down in steps, found during
+  /// the most recent [scanScreen] call. Their labels include the value.
+  List<ClickableElement> get lastAdjustableElements =>
+      List.unmodifiable(_lastAdjustableElements);
+
+  /// Where the controls with nothing to call them are, from the most recent
+  /// [scanScreen] call. Neither the agent nor a screen reader can use them.
+  List<Rect> get lastUnlabelled => List.unmodifiable(_lastUnlabelled);
 
   /// Whether the screen has something that scrolls in either direction.
   bool get canScroll => _scrollables.isNotEmpty;
@@ -46,9 +68,12 @@ class FlutterScreenScanner {
   }
 
   /// Scan the current Flutter screen and return all detected UI elements.
+  ///
+  /// [isPrivateAt] hides the values of fields the app keeps private.
   Future<FlutterScreenState?> scanScreen(
     BuildContext context, {
     String? routeName,
+    VablePrivateTest? isPrivateAt,
   }) async {
     try {
       if (_semantics == null) {
@@ -68,12 +93,14 @@ class FlutterScreenScanner {
       }
       _owner = owner;
 
-      final scan = _Scan(1 / View.of(context).devicePixelRatio);
+      final scan = _Scan(1 / View.of(context).devicePixelRatio, isPrivateAt);
       scan.visit(root, Matrix4.identity(), null, 0);
 
       _elements = scan.elements;
       _lastClickableElements = scan.clickables;
       _lastInputElements = scan.inputs;
+      _lastAdjustableElements = scan.adjustables;
+      _lastUnlabelled = scan.unlabelled;
       _scrollables = scan.scrollables..sort((a, b) => b.area.compareTo(a.area));
 
       VableLogger.debug(
@@ -105,6 +132,14 @@ class FlutterScreenScanner {
     _owner?.performAction(_nodeId(id), SemanticsAction.showOnScreen);
   }
 
+  /// Moves a slider or similar control one step up or down.
+  void adjust(String id, {required bool up}) {
+    _owner?.performAction(
+      _nodeId(id),
+      up ? SemanticsAction.increase : SemanticsAction.decrease,
+    );
+  }
+
   /// Scrolls the main list one step. Returns false if it can't go that way.
   bool scroll({required bool down}) {
     final action = down ? SemanticsAction.scrollUp : SemanticsAction.scrollDown;
@@ -118,6 +153,11 @@ class FlutterScreenScanner {
   }
 
   int _nodeId(String id) => int.parse(id.substring(_idPrefix.length));
+
+  /// Whether [id] could have come from a scan, so a made-up one can be told
+  /// apart from an element that has gone.
+  static bool isScanId(String id) =>
+      id.startsWith(_idPrefix) && int.tryParse(id.substring(_idPrefix.length)) != null;
 }
 
 class _Scrollable {
@@ -130,13 +170,21 @@ class _Scrollable {
 }
 
 class _Scan {
-  _Scan(this.scale);
+  _Scan(this.scale, this.isPrivateAt);
 
   final double scale;
+  final VablePrivateTest? isPrivateAt;
   final elements = <FlutterUIElement>[];
   final clickables = <ClickableElement>[];
   final inputs = <InputElement>[];
+  final adjustables = <ClickableElement>[];
+  final unlabelled = <Rect>[];
   final scrollables = <_Scrollable>[];
+
+  // The last plain text seen, which often names the control beside it, as in
+  // a Row of Text('Sugar') and a Slider
+  String? _lastText;
+  Rect? _lastTextBounds;
 
   void visit(SemanticsNode node, Matrix4 parentTransform, String? parentId, int depth) {
     final transform = node.transform == null
@@ -173,21 +221,33 @@ class _Scan {
     int depth,
   ) {
     final flags = data.flagsCollection;
-    final label = _firstText([data.label, data.tooltip]);
-    final value = flags.isObscured ? '' : _clean(data.value);
-    final hint = _clean(data.hint);
-
     final isEnabled = flags.isEnabled != Tristate.isFalse;
     final isField = flags.isTextField;
     final canTap = data.hasAction(SemanticsAction.tap);
     final isClickable = canTap && isEnabled && !isField;
+    final isAdjustable = isEnabled &&
+        (data.hasAction(SemanticsAction.increase) || data.hasAction(SemanticsAction.decrease));
     // A scroll up moves the content up, which shows what's further down
     final canScrollDown = data.hasAction(SemanticsAction.scrollUp);
     final canScrollUp = data.hasAction(SemanticsAction.scrollDown);
     final isScrollable = canScrollDown || canScrollUp;
 
+    var label = _firstText([data.label, data.tooltip]);
+    if (label.isEmpty && (isAdjustable || isField)) label = _textBeside(bounds);
+    final hint = _clean(data.hint);
+    final isPrivate = flags.isObscured ||
+        (isField && (_privateFieldLabel.hasMatch('$label $hint') ||
+            (isPrivateAt?.call(bounds.center) ?? false)));
+    final value = isPrivate ? '' : _clean(data.value);
+
     final hasContent = label.isNotEmpty || value.isNotEmpty || hint.isNotEmpty;
+    if (!hasContent && (isClickable || isAdjustable)) unlabelled.add(bounds);
     if (!hasContent && !isField && !isScrollable) return;
+
+    if (!isClickable && !isField && !isAdjustable && label.isNotEmpty) {
+      _lastText = label;
+      _lastTextBounds = bounds;
+    }
 
     final type = _typeOf(flags, isClickable, isScrollable);
     elements.add(
@@ -204,7 +264,11 @@ class _Scan {
         isFocusable: isField,
         isSelected: flags.isSelected == Tristate.isTrue,
         isChecked: _checkedState(flags),
-        hint: canScrollDown ? 'There is more below. Scroll down to see it.' : hint.nullIfEmpty,
+        hint: canScrollDown
+            ? 'There is more below. Scroll down to see it.'
+            : isPrivate && isField
+                ? 'What is typed here is private, so it is not shown.'
+                : hint.nullIfEmpty,
         parentId: parentId,
         depth: depth,
       ),
@@ -223,6 +287,18 @@ class _Scan {
           type: type,
           bounds: bounds,
           label: _firstText([label, hint]).orElse('Text field'),
+          depth: depth,
+          isOffScreen: flags.isHidden,
+        ),
+      );
+    } else if (isAdjustable) {
+      if (label.isEmpty && value.isEmpty) return;
+      adjustables.add(
+        ClickableElement(
+          id: id,
+          type: type,
+          bounds: bounds,
+          label: [label, value].where((text) => text.isNotEmpty).join(', '),
           depth: depth,
           isOffScreen: flags.isHidden,
         ),
@@ -279,6 +355,22 @@ class _Scan {
       return flags.isToggled == Tristate.isTrue ? ' (on)' : ' (off)';
     }
     return flags.isSelected == Tristate.isTrue ? ' (selected)' : '';
+  }
+
+  /// Text just before a control on the same line, or just above it, which
+  /// usually says what the control is for.
+  String _textBeside(Rect bounds) {
+    final text = _lastText;
+    final textBounds = _lastTextBounds;
+    if (text == null || textBounds == null) return '';
+
+    final sameLine = textBounds.center.dy >= bounds.top &&
+        textBounds.center.dy <= bounds.bottom &&
+        textBounds.right <= bounds.left + 8;
+    final justAbove = textBounds.bottom <= bounds.top + 4 &&
+        bounds.top - textBounds.bottom < 24 &&
+        textBounds.left < bounds.right;
+    return sameLine || justAbove ? text : '';
   }
 
   String _firstText(List<String> texts) => texts
