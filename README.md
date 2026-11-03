@@ -16,7 +16,7 @@ A Flutter plugin for integrating Vable AI voice assistant into your Flutter appl
 | Platform | Status |
 |----------|--------|
 | Android  | ✅ API 26 and up |
-| iOS      | ✅ iOS 13 and up |
+| iOS      | ✅ iOS 15 and up |
 
 ## Installation
 
