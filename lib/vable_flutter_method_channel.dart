@@ -120,6 +120,21 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
   }
 
   @override
+  Future<void> setCallStyle(String style) async {
+    await methodChannel.invokeMethod<bool>('setCallStyle', {'style': style});
+  }
+
+  @override
+  Future<void> setGlowColor(int argb) async {
+    await methodChannel.invokeMethod<bool>('setGlowColor', {'color': argb});
+  }
+
+  @override
+  Future<void> setEndButtonVisible(bool visible) async {
+    await methodChannel.invokeMethod<bool>('setEndButtonVisible', {'visible': visible});
+  }
+
+  @override
   Future<bool> startVoiceChat() async {
     try {
       final result = await methodChannel.invokeMethod<bool>('startVoiceChat');

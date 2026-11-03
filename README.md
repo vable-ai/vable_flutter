@@ -77,6 +77,14 @@ The SDK asks for the microphone when the first session starts. Add `VableNavigat
 
 Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the user hangs up or the agent ends the call. `Vable.setMicrophoneMuted(true)` mutes the microphone, during a session or ahead of one.
 
+## How a call looks
+
+During a call, a soft glow runs round the edges of the screen, in one colour. It moves with the agent's voice and the user's, dims while muted, and never blocks a tap. `Vable.setGlowColor(color)` sets its colour.
+
+There's no status text. A small round end button rests on the right edge, fades back after a few seconds, and can be dragged to either side. Users can also say goodbye. If your app has its own way to end the call through `Vable.endVoiceChat()`, you can hide the button with `Vable.setEndButtonVisible(false)`.
+
+For the older pill, with its status and a hang-up button, call `Vable.setCallStyle(VableCallStyle.pill)` before starting. `Vable.setCallPillPosition(VableCallPillPosition.top)` moves it up if it covers your tabs.
+
 ## What the agent can do
 
 The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll, move sliders and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent. A slider or field with no label of its own takes the text just before it, as in a `Row` of `Text('Sugar')` and a `Slider`. A `Slider` reads as a percentage unless you give it a `semanticFormatterCallback`, so give it one when its value means something else, such as a quantity. In debug builds the SDK logs each screen's controls that have no label, so you can find them.

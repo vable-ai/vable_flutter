@@ -51,6 +51,26 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       Vable.shared.setCallPillPosition(position == "top" ? .top : .bottom)
       result(true)
 
+    case "setCallStyle":
+      let style = (call.arguments as? [String: Any])?["style"] as? String
+      Vable.shared.setCallStyle(style == "pill" ? .pill : .glow)
+      result(true)
+
+    case "setGlowColor":
+      if let argb = ((call.arguments as? [String: Any])?["color"] as? NSNumber)?.uint32Value {
+        Vable.shared.setGlowColor(UIColor(
+          red: CGFloat((argb >> 16) & 0xFF) / 255,
+          green: CGFloat((argb >> 8) & 0xFF) / 255,
+          blue: CGFloat(argb & 0xFF) / 255,
+          alpha: CGFloat((argb >> 24) & 0xFF) / 255
+        ))
+      }
+      result(true)
+
+    case "setEndButtonVisible":
+      Vable.shared.setEndButtonVisible((call.arguments as? [String: Any])?["visible"] as? Bool ?? true)
+      result(true)
+
     case "updateFlutterScreenContext":
       handleUpdateFlutterScreenContext(call: call, result: result)
 

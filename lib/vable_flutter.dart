@@ -18,6 +18,17 @@ export 'src/vable_logger.dart';
 /// Where the call pill sits on the screen
 enum VableCallPillPosition { top, bottom }
 
+/// How a call shows on screen
+enum VableCallStyle {
+  /// A soft glow round the edges of the screen, with no text, and one small
+  /// button on the edge to end the call. The glow never takes a touch. The
+  /// user can also end the call by saying goodbye.
+  glow,
+
+  /// A small pill with the call's status and a button to hang up
+  pill,
+}
+
 /// Supported routing libraries for AI-driven navigation
 enum VableRoutingLibrary {
   /// Default Flutter Navigator (Navigator.pushNamed)
@@ -193,6 +204,26 @@ class Vable {
   /// this takes effect from the next session.
   static Future<void> setCallPillPosition(VableCallPillPosition position) {
     return VableFlutterPlatform.instance.setCallPillPosition(position.name);
+  }
+
+  /// Show calls as a glow round the edges of the screen (the default) or as
+  /// the pill. Takes effect from the next session.
+  static Future<void> setCallStyle(VableCallStyle style) {
+    return VableFlutterPlatform.instance.setCallStyle(style.name);
+  }
+
+  /// The glow's colour, usually your brand colour. It's shown in lighter and
+  /// deeper tints of itself. Takes effect from the next session.
+  static Future<void> setGlowColor(Color color) {
+    return VableFlutterPlatform.instance.setGlowColor(color.toARGB32());
+  }
+
+  /// Whether the glow shows its small end button. It rests on the right edge
+  /// and can be dragged out of the way. Hide it only if your app has its own
+  /// way to end the call, through [endVoiceChat]. Takes effect from the next
+  /// session.
+  static Future<void> setEndButtonVisible(bool visible) {
+    return VableFlutterPlatform.instance.setEndButtonVisible(visible);
   }
 
   /// Check if a voice chat session is currently active.

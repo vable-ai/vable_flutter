@@ -22,6 +22,15 @@ class MockVableFlutterPlatform
   Future<void> setCallPillPosition(String position) => Future.value();
 
   @override
+  Future<void> setCallStyle(String style) => Future.value();
+
+  @override
+  Future<void> setGlowColor(int argb) => Future.value();
+
+  @override
+  Future<void> setEndButtonVisible(bool visible) => Future.value();
+
+  @override
   Future<bool> startVoiceChat() => Future.value(true);
 
   @override

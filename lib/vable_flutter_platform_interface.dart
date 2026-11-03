@@ -46,6 +46,21 @@ abstract class VableFlutterPlatform extends PlatformInterface {
     throw UnimplementedError('setCallPillPosition() has not been implemented.');
   }
 
+  /// Show calls as the glow or the pill.
+  Future<void> setCallStyle(String style) {
+    throw UnimplementedError('setCallStyle() has not been implemented.');
+  }
+
+  /// The glow's colour, as ARGB.
+  Future<void> setGlowColor(int argb) {
+    throw UnimplementedError('setGlowColor() has not been implemented.');
+  }
+
+  /// Show or hide the glow's end button.
+  Future<void> setEndButtonVisible(bool visible) {
+    throw UnimplementedError('setEndButtonVisible() has not been implemented.');
+  }
+
   /// Start a voice chat session.
   ///
   /// This will display the voice chat UI and initialize WebRTC and NATS connections.

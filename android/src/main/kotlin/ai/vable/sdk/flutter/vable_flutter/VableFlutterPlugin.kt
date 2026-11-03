@@ -1,6 +1,7 @@
 package ai.vable.sdk.flutter.vable_flutter
 
 import ai.vable.mobile.CallPillPosition
+import ai.vable.mobile.CallStyle
 import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
 import ai.vable.mobile.Vable
@@ -167,6 +168,20 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         Vable.setCallPillPosition(
           if (call.argument<String>("position") == "top") CallPillPosition.Top else CallPillPosition.Bottom
         )
+        result.success(true)
+      }
+      "setCallStyle" -> {
+        Vable.setCallStyle(if (call.argument<String>("style") == "pill") CallStyle.Pill else CallStyle.Glow)
+        result.success(true)
+      }
+      "setGlowColor" -> {
+        // Dart sends ARGB as a positive number, which can overflow an Int into a Long
+        val color = call.argument<Number>("color")
+        if (color != null) Vable.setGlowColor(color.toLong().toInt())
+        result.success(true)
+      }
+      "setEndButtonVisible" -> {
+        Vable.setEndButtonVisible(call.argument<Boolean>("visible") ?: true)
         result.success(true)
       }
       "updateFlutterScreenContext" -> {
