@@ -221,7 +221,9 @@ Make sure you call `initialize()` with your public key before using any other me
 
 1. Ensure your Android `minSdk` is at least 26
 2. Add the `packaging` block from the Android setup if the build fails on a duplicate `MANIFEST.MF`
-3. Try running `flutter clean` and rebuilding
+3. Ensure your iOS deployment target is at least 15.0
+4. With Xcode 27, use Flutter 3.47 or later. Older Flutter fails iOS simulator builds with `does not contain architectures "arm64 x86_64"`
+5. Try running `flutter clean` and rebuilding
 
 ## Sample App
 
