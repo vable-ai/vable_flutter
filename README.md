@@ -27,7 +27,7 @@ dependencies:
   vable_flutter:
     git:
       url: https://github.com/vable-ai/vable_flutter.git
-      ref: v0.0.3
+      ref: v0.0.4
 ```
 
 ## Setup
@@ -54,6 +54,8 @@ Add a reason for using the microphone to `ios/Runner/Info.plist`:
 <key>NSMicrophoneUsageDescription</key>
 <string>Talk to our assistant</string>
 ```
+
+The plugin brings the iOS SDK as a Swift package, so keep Flutter's Swift Package Manager support on, as it is by default. If you turned it off, run `flutter config --enable-swift-package-manager`. You don't need to add anything to your Podfile.
 
 ## Usage
 

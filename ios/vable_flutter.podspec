@@ -13,7 +13,7 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat with context-
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Vable AI' => 'support@vable.ai' }
   s.source           = { :path => '.' }
-  s.source_files = 'Sources/vable_flutter/**/*.swift'
+  s.source_files = 'vable_flutter/Sources/vable_flutter/**/*.swift'
   s.dependency 'Flutter'
   s.dependency 'VableAI', '>= 0.0.4'
   s.platform = :ios, '15.0'
@@ -33,5 +33,5 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat with context-
   # required reason APIs, update the PrivacyInfo.xcprivacy file to describe your
   # plugin's privacy impact, and then uncomment this line. For more information,
   # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'vable_flutter_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  s.resource_bundles = {'vable_flutter_privacy' => ['vable_flutter/Sources/vable_flutter/PrivacyInfo.xcprivacy']}
 end

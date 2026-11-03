@@ -1,3 +1,7 @@
+## 0.0.4
+
+* On iOS, the plugin is now a Swift package, which Flutter uses by default, with the iOS SDK 0.0.5. CocoaPods no longer takes new releases, so 0.0.3 couldn't install the iOS SDK it needed. Apps don't need a `pod 'VableAI'` line any more; remove it if you added one.
+
 ## 0.0.3
 
 Needs iOS 15 or later, the iOS SDK 0.0.4 and the Android SDK 0.0.1+6. With Xcode 27, use Flutter 3.47 or later.
