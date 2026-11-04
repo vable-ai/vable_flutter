@@ -103,4 +103,11 @@ abstract class VableFlutterPlatform extends PlatformInterface {
   Future<bool> sendToolResult(String toolName, String? toolId, String result) {
     throw UnimplementedError('sendToolResult() has not been implemented.');
   }
+
+  /// The call's screen frames setting, from the room the native SDK created:
+  /// `{enabled, maxFrames, maxWidth, minIntervalMs}`, or null when there's no
+  /// call or the engine didn't send it.
+  Future<Map<dynamic, dynamic>?> getScreenFrames() {
+    throw UnimplementedError('getScreenFrames() has not been implemented.');
+  }
 }

@@ -44,6 +44,9 @@ class MockVableFlutterPlatform
 
   @override
   Future<bool> sendToolResult(String toolName, String? toolId, String result) => Future.value(true);
+
+  @override
+  Future<Map<dynamic, dynamic>?> getScreenFrames() => Future.value(null);
 }
 
 void main() {

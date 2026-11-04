@@ -142,6 +142,20 @@ VableNoOp(
 
 `VableNoOp` doesn't change your layout or how users interact with the control. Wrap a whole dialog to cover everything inside it.
 
+## Screen frames
+
+Vable can record small pictures of the screen during a call, so your team can see what the user saw next to what the agent did. It only does this when your project has screen frames turned on, which they aren't by default, and never outside a call or while the app is in the background.
+
+Before a picture leaves the device, solid boxes cover every text field you can type in, password fields, fields whose label looks like a card number, PIN or ID number, and anything inside `VableNoOp`. Wrap anything else that should never be recorded, such as a card image or a document, in `VableMask`:
+
+```dart
+VableMask(
+  child: Image.network(card.imageUrl),
+)
+```
+
+`VableMask` doesn't change your layout or what the agent can do. Maps, web views and other platform views may come out blank.
+
 ## AI-Driven Navigation
 
 Vable can automatically navigate your app based on voice commands! When a user says "show me my account", the AI understands the intent and navigates to your account page.

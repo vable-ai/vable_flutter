@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vable_flutter/src/models/ui_element.dart';
 import 'vable_flutter_platform_interface.dart';
+import 'src/screen_frames.dart';
 import 'src/screen_scanner_manager.dart';
 import 'src/models/context_models.dart';
 import 'src/route_extractor.dart';
@@ -8,6 +9,8 @@ import 'src/vable_logger.dart';
 
 // Export screen scanner for advanced use cases
 export 'src/screen_scanner_manager.dart';
+export 'src/screen_frames.dart'
+    show VableScreenFramesConfig, VableFrameReason, VableScreenFrameHeader, VableScreenFrames;
 export 'src/vable_navigator_observer.dart';
 export 'src/vable_no_op.dart';
 export 'src/models/ui_element.dart';
@@ -154,13 +157,28 @@ class Vable {
 
     if (!result) {
       _screenScannerManager.stopScanning();
-    } else if (context.mounted) {
-      // Store the Navigator's context for navigation (never unmounts)
-      final navigatorContext = Navigator.maybeOf(context)?.context;
-      _navigationContext = navigatorContext ?? context;
+    } else {
+      if (context.mounted) {
+        // Store the Navigator's context for navigation (never unmounts)
+        final navigatorContext = Navigator.maybeOf(context)?.context;
+        _navigationContext = navigatorContext ?? context;
+      }
+      await _startScreenFrames();
     }
 
     return result;
+  }
+
+  /// Records what the user sees during the call, if the project turned it on.
+  /// The room is created by now, and its response says whether it's on.
+  static Future<void> _startScreenFrames() async {
+    try {
+      final config = await VableFlutterPlatform.instance.getScreenFrames();
+      _screenScannerManager.frames.start(VableScreenFramesConfig.fromMap(config));
+    } catch (e) {
+      // A native side without frames
+      VableLogger.debug('[VableFlutter] Screen frames unavailable: $e');
+    }
   }
 
   /// End the current voice chat session.
@@ -177,6 +195,7 @@ class Vable {
   /// Throws an Exception if ending fails.
   static Future<bool> endVoiceChat() async {
     // Stop screen scanning
+    _screenScannerManager.frames.stop();
     _screenScannerManager.stopScanning();
 
     // Clear navigation context
@@ -187,6 +206,7 @@ class Vable {
 
   /// Internal method called by the platform implementation when a session ends.
   static void handleVoiceChatEnded() {
+    _screenScannerManager.frames.stop();
     _screenScannerManager.stopScanning();
     _navigationContext = null;
     onVoiceChatEnded?.call();
@@ -834,7 +854,7 @@ class Vable {
   /// Internal method to handle navigation events from the native side.
   /// Called by the platform implementation when the AI agent requests navigation.
   /// [toolId] is the ID of the agent's tool call, sent back with the result.
-  static void handleNavigationEvent(String url, {String? toolId}) async {
+  static Future<void> handleNavigationEvent(String url, {String? toolId}) async {
     VableLogger.info('[VableFlutter] Navigation event received: $url');
 
     final before = await _screenScannerManager.captureScreen();

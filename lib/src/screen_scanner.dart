@@ -19,6 +19,23 @@ final RegExp _privateFieldLabel = RegExp(
 /// Whether the field at a point on screen is one the app keeps private.
 typedef VablePrivateTest = bool Function(Offset position);
 
+/// What a screen frame has to cover, from the semantics tree.
+typedef VableSemanticsMasks = ({List<Rect> rects, bool platformViews});
+
+/// The areas a screen frame covers, in logical pixels: every editable or
+/// obscured text field, and fields whose label looks private, the same rule the
+/// snapshot uses to hide values. [platformViews] says whether a map, web view or
+/// other platform view is on screen, which a frame may show blank.
+VableSemanticsMasks semanticsMasks(
+  SemanticsNode root,
+  double devicePixelRatio, {
+  VablePrivateTest? isPrivateAt,
+}) {
+  final scan = _Scan(1 / devicePixelRatio, isPrivateAt);
+  scan.visit(root, Matrix4.identity(), null, 0);
+  return (rects: scan.masks, platformViews: scan.platformViews);
+}
+
 /// Reads the screen from Flutter's semantics tree, the same view a screen reader
 /// gets. The render tree holds every page in the stack and every hidden tab, and
 /// says nothing about labels or disabled controls. Semantics leaves those out,
@@ -152,6 +169,15 @@ class FlutterScreenScanner {
     return false;
   }
 
+  /// What a screen frame has to cover right now. Null when the semantics tree
+  /// isn't there, in which case nothing can be masked, so no frame is taken.
+  VableSemanticsMasks? masksNow(BuildContext context, {VablePrivateTest? isPrivateAt}) {
+    if (_semantics == null || !context.mounted) return null;
+    final root = context.findRenderObject()?.owner?.semanticsOwner?.rootSemanticsNode;
+    if (root == null) return null;
+    return semanticsMasks(root, View.of(context).devicePixelRatio, isPrivateAt: isPrivateAt);
+  }
+
   int _nodeId(String id) => int.parse(id.substring(_idPrefix.length));
 
   /// Whether [id] could have come from a scan, so a made-up one can be told
@@ -181,6 +207,10 @@ class _Scan {
   final unlabelled = <Rect>[];
   final scrollables = <_Scrollable>[];
 
+  /// What a screen frame covers
+  final masks = <Rect>[];
+  bool platformViews = false;
+
   // The last plain text seen, which often names the control beside it, as in
   // a Row of Text('Sugar') and a Slider
   String? _lastText;
@@ -196,6 +226,7 @@ class _Scan {
     if (!node.isInvisible) {
       final bounds = MatrixUtils.transformRect(transform, node.rect);
       _add(node, data, id, _logical(bounds), parentId, depth);
+      if (data.platformViewId != null && data.platformViewId != -1) platformViews = true;
     }
 
     if (node.mergeAllDescendantsIntoThisNode) return;
@@ -239,6 +270,8 @@ class _Scan {
         (isField && (_privateFieldLabel.hasMatch('$label $hint') ||
             (isPrivateAt?.call(bounds.center) ?? false)));
     final value = isPrivate ? '' : _clean(data.value);
+    // A frame covers what's typed into a field, whatever the snapshot shows
+    if ((isField && !flags.isReadOnly) || isPrivate) masks.add(bounds);
 
     final hasContent = label.isNotEmpty || value.isNotEmpty || hint.isNotEmpty;
     if (!hasContent && (isClickable || isAdjustable)) unlabelled.add(bounds);

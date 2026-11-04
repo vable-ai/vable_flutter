@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'screen_frames.dart';
 import 'screen_scanner.dart';
 import 'vable_no_op.dart';
 import 'models/ui_element.dart';
@@ -49,6 +50,14 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   final FlutterScreenScanner _scanner = FlutterScreenScanner();
   final MethodChannel _channel = const MethodChannel('vable_flutter');
+
+  /// Records what the user saw during a call, when the project turns it on.
+  late final VableScreenFrames frames = VableScreenFrames(
+    context: () => _context,
+    route: () => _routeName,
+    scanner: _scanner,
+    channel: _channel,
+  );
 
   Timer? _scanTimer;
   BuildContext? _context;
@@ -199,6 +208,8 @@ class ScreenScannerManager with WidgetsBindingObserver{
         if (screen == _lastSentScreen) return;
         _lastSentScreen = screen;
 
+        // The frame shows what the user saw when the agent got this snapshot
+        frames.onPage();
         await Future.wait([
           _sendScreenContextToNative(screenState),
           _sendIntentContextToNative(_lastClickableElements, _lastInputElements),
