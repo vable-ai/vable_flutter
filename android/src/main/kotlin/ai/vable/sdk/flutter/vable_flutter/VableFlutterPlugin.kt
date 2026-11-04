@@ -4,6 +4,7 @@ import ai.vable.mobile.CallPillPosition
 import ai.vable.mobile.CallStyle
 import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
+import ai.vable.mobile.ScreenFramePayload
 import ai.vable.mobile.Vable
 import ai.vable.mobile.VableEnvironment
 import ai.vable.mobile.VableToolEventCallback
@@ -19,8 +20,13 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import android.app.Activity
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /** VableFlutterPlugin */
 class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
@@ -33,6 +39,8 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
   private var activityBinding: ActivityPluginBinding? = null
   private var application: Application? = null
   private val mainHandler = Handler(Looper.getMainLooper())
+  /** Encodes screen frames off the main thread, one at a time */
+  private var frameEncoder: ExecutorService? = null
 
   private val logger = Logger.createLogger("FlutterPlugin")
 
@@ -304,14 +312,53 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
           result.error("SEND_TOOL_RESULT_ERROR", e.message, null)
         }
       }
+      "getScreenFrames" -> {
+        result.success(Vable.getScreenFramesConfig()?.toMap())
+      }
+      "sendScreenFrame" -> sendScreenFrame(call, result)
       else -> {
         result.notImplemented()
       }
     }
   }
 
+  /**
+   * Encodes Dart's masked RGBA frame as JPEG off the main thread, and sends it through the
+   * SDK. Answers once it's handed over, so Dart keeps one frame in flight.
+   */
+  private fun sendScreenFrame(call: MethodCall, result: Result) {
+    val rgba = call.argument<ByteArray>("rgba")
+    val width = call.argument<Int>("width") ?: 0
+    val height = call.argument<Int>("height") ?: 0
+    val header = call.argument<String>("header")
+    if (rgba == null || header == null || width <= 0 || height <= 0 || rgba.size < width * height * 4) {
+      result.error("MISSING_ARGUMENT", "rgba, width, height and header are required", null)
+      return
+    }
+    val encoder = frameEncoder ?: Executors.newSingleThreadExecutor().also { frameEncoder = it }
+    encoder.execute {
+      val sent = try {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        // ARGB_8888 is laid out as RGBA bytes, so Dart's bytes copy straight in
+        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(rgba, 0, width * height * 4))
+        val jpeg = ByteArrayOutputStream().use { out ->
+          bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
+          out.toByteArray()
+        }
+        bitmap.recycle()
+        Vable.sendScreenFrame(ScreenFramePayload.build(header, jpeg))
+      } catch (e: Exception) {
+        logger.e("Failed to encode screen frame", e)
+        false
+      }
+      mainHandler.post { result.success(sent) }
+    }
+  }
+
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
+    frameEncoder?.shutdown()
+    frameEncoder = null
     // Unregister navigation callback
     Vable.setEventCallback(null)
   }

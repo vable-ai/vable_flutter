@@ -80,6 +80,12 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case "sendToolResult":
       handleSendToolResult(call: call, result: result)
 
+    case "getScreenFrames":
+      result(Vable.shared.screenFramesConfig?.dictionary)
+
+    case "sendScreenFrame":
+      handleSendScreenFrame(call: call, result: result)
+
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -187,6 +193,51 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     }
     Vable.shared.sendToolResult(toolName: toolName, toolId: args["toolId"] as? String, result: toolResult)
     result(true)
+  }
+
+  /// Encodes Dart's masked RGBA frame as JPEG off the main thread, and sends it through the
+  /// SDK. Answers once it's handed over, so Dart keeps one frame in flight.
+  private func handleSendScreenFrame(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let rgba = (args["rgba"] as? FlutterStandardTypedData)?.data,
+          let width = args["width"] as? Int,
+          let height = args["height"] as? Int,
+          let header = args["header"] as? String,
+          width > 0, height > 0, rgba.count >= width * height * 4 else {
+      result(FlutterError(code: "MISSING_ARGUMENT", message: "rgba, width, height and header are required", details: nil))
+      return
+    }
+    DispatchQueue.global(qos: .utility).async {
+      let jpeg = Self.jpeg(rgba: rgba, width: width, height: height)
+      DispatchQueue.main.async {
+        guard let jpeg = jpeg else {
+          result(false)
+          return
+        }
+        let payload = VableScreenFrame.payload(header: Data(header.utf8), jpeg: jpeg)
+        result(Vable.shared.sendScreenFrame(payload))
+      }
+    }
+  }
+
+  /// The frame is opaque, so its alpha is skipped.
+  private static func jpeg(rgba: Data, width: Int, height: Int) -> Data? {
+    guard let provider = CGDataProvider(data: rgba as CFData),
+          let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let image = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * 4,
+            space: space,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+          ) else { return nil }
+    return UIImage(cgImage: image).jpegData(compressionQuality: 0.5)
   }
 
   // MARK: - VableNavigationDelegate
