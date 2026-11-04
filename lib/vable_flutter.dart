@@ -359,23 +359,27 @@ class Vable {
 
   /// Runs the app's handler for an intent the agent called and tells the agent
   /// how it went. Without a result the agent would wait for one.
+  ///
+  /// [toolId] is the ID of the agent's tool call, sent back with the result.
   static Future<void> handleIntentEvent(
     String name,
-    Map<String, dynamic> parameters,
-  ) async {
+    Map<String, dynamic> parameters, {
+    String? toolId,
+  }) async {
     final handler = _screenScannerManager.intentHandler(name);
     if (handler == null) {
       VableLogger.error('[VableFlutter] No handler for intent $name. Give it an onIntent.');
-      await sendToolResult(toolName: name, result: "Failed: this app can't do that yet");
+      await sendToolResult(
+          toolName: name, toolId: toolId, result: "Failed: this app can't do that yet");
       return;
     }
 
     try {
       final result = await handler(parameters);
-      await sendToolResult(toolName: name, result: result ?? 'Done.');
+      await sendToolResult(toolName: name, toolId: toolId, result: result ?? 'Done.');
     } catch (e) {
       VableLogger.error('[VableFlutter] Intent $name failed: $e');
-      await sendToolResult(toolName: name, result: 'Failed: $e');
+      await sendToolResult(toolName: name, toolId: toolId, result: 'Failed: $e');
     }
   }
 
@@ -829,7 +833,8 @@ class Vable {
 
   /// Internal method to handle navigation events from the native side.
   /// Called by the platform implementation when the AI agent requests navigation.
-  static void handleNavigationEvent(String url) async {
+  /// [toolId] is the ID of the agent's tool call, sent back with the result.
+  static void handleNavigationEvent(String url, {String? toolId}) async {
     VableLogger.info('[VableFlutter] Navigation event received: $url');
 
     final before = await _screenScannerManager.captureScreen();
@@ -840,10 +845,10 @@ class Vable {
       try {
         _navigationCallback!(url);
         VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url');
-        await _sendNavigationResult(url, true, before);
+        await _sendNavigationResult(url, true, before, toolId);
       } catch (e) {
         VableLogger.error('[VableFlutter] ❌ Error in custom navigation callback: $e');
-        await _sendNavigationResult(url, false, before);
+        await _sendNavigationResult(url, false, before, toolId);
       }
       return;
     }
@@ -865,29 +870,31 @@ class Vable {
         break;
     }
 
-    await _sendNavigationResult(url, navigated, before);
+    await _sendNavigationResult(url, navigated, before, toolId);
   }
 
   static Future<void> _sendNavigationResult(
     String url,
     bool navigated,
     VableScreenSnapshot? before,
+    String? toolId,
   ) async {
     if (!navigated) {
-      sendToolResult(toolName: "navigate", result: "Failed: couldn't open $url");
+      sendToolResult(toolName: "navigate", toolId: toolId, result: "Failed: couldn't open $url");
       return;
     }
     final change = await _screenScannerManager.describeChangeSince(before);
     if (await _screenScannerManager.leaveEmptyScreen()) {
       sendToolResult(
         toolName: "navigate",
+        toolId: toolId,
         result: "Failed: $url came up empty, so it was closed. It needs something "
             "picked first. Open it yourself by tapping what leads there, such as "
             "a tab, card or button, rather than asking the user to.",
       );
       return;
     }
-    sendToolResult(toolName: "navigate", result: "Went to $url. $change".trim());
+    sendToolResult(toolName: "navigate", toolId: toolId, result: "Went to $url. $change".trim());
   }
 
   /// Navigate using GoRouter (go_router package)

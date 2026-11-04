@@ -473,6 +473,25 @@ void main() {
       expect(results.single, containsPair('toolName', 'addToCart'));
     });
 
+    test('send the tool call ID from the native side back with the result', () async {
+      await Vable.updateIntents(
+        VableContextUpdate(intents: [VableIntent(name: 'addToCart', onIntent: (_) => 'Added')]),
+      );
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        _channel.name,
+        const StandardMethodCodec().encodeMethodCall(const MethodCall('onIntent', {
+          'id': 'addToCart',
+          'toolId': 'toolu_123',
+          'parameters': {'item': 'Latte'},
+        })),
+        (_) {},
+      );
+
+      expect(results.single, containsPair('toolId', 'toolu_123'));
+      expect(results.single, containsPair('result', 'Added'));
+    });
+
     test('tell the agent when the handler fails', () async {
       await call('addToCart', (_) => throw StateError('out of stock'));
 

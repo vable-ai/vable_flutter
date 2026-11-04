@@ -192,14 +192,28 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
   // MARK: - VableNavigationDelegate
 
   public func onNavigateRequested(url: String) {
+    onNavigateRequested(url: url, toolId: nil)
+  }
+
+  // The SDK calls these with the ID of the agent's tool call, which Dart sends back with
+  // its result. Against an SDK without them, the methods above are called instead.
+  public func onNavigateRequested(url: String, toolId: String?) {
+    var args: [String: Any] = ["url": url]
+    if let toolId = toolId { args["toolId"] = toolId }
     DispatchQueue.main.async { [weak self] in
-      self?.channel?.invokeMethod("onNavigate", arguments: ["url": url])
+      self?.channel?.invokeMethod("onNavigate", arguments: args)
     }
   }
 
   public func onIntent(id: String, parameters: [String: Any]) {
+    onIntent(id: id, parameters: parameters, toolId: nil)
+  }
+
+  public func onIntent(id: String, parameters: [String: Any], toolId: String?) {
+    var args: [String: Any] = ["id": id, "parameters": parameters]
+    if let toolId = toolId { args["toolId"] = toolId }
     DispatchQueue.main.async { [weak self] in
-      self?.channel?.invokeMethod("onIntent", arguments: ["id": id, "parameters": parameters])
+      self?.channel?.invokeMethod("onIntent", arguments: args)
     }
   }
 

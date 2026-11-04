@@ -22,7 +22,7 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
       case 'onNavigate':
         final url = call.arguments['url'] as String?;
         if (url != null) {
-          Vable.handleNavigationEvent(url);
+          Vable.handleNavigationEvent(url, toolId: call.arguments['toolId'] as String?);
         } else {
           VableLogger.error('[VableFlutter] Warning: onNavigate called without url argument');
         }
@@ -30,6 +30,8 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         Vable.handleVoiceChatEnded();
       case 'onIntent':
         final intentId = call.arguments['id'] as String?;
+        // The ID of the agent's tool call, sent back with the result
+        final toolId = call.arguments['toolId'] as String?;
         final parameters = (call.arguments['parameters'] as Map?)
             ?.cast<String, dynamic>() ?? {};
         VableLogger.debug('[VableFlutter] onIntent received: id=$intentId, parameters=$parameters');
@@ -38,14 +40,14 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
           if (elementId != null) {
             try {
               final result = await ScreenScannerManager().clickForAgent(elementId);
-              Vable.sendToolResult(toolName: "clickElement", result: result);
+              Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: result);
             } catch (e) {
               VableLogger.error('[VableFlutter] clickElement failed: $e');
-              Vable.sendToolResult(toolName: "clickElement", result: "Failed: $e");
+              Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: "Failed: $e");
             }
           } else {
             VableLogger.error('[VableFlutter] clickElement intent missing "id" parameter');
-            Vable.sendToolResult(toolName: "clickElement", result: "Failed: no element was given");
+            Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: "Failed: no element was given");
           }
         } else if (intentId == 'inputText') {
           final elementId = parameters['id']?.toString();
@@ -53,22 +55,22 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
           if (elementId != null && text != null) {
             try {
               final result = await ScreenScannerManager().inputForAgent(elementId, text);
-              Vable.sendToolResult(toolName: "inputText", result: result);
+              Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: result);
             } catch (e) {
               VableLogger.error('[VableFlutter] inputText failed: $e');
-              Vable.sendToolResult(toolName: "inputText", result: "Failed: $e");
+              Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: "Failed: $e");
             }
           } else {
             VableLogger.error('[VableFlutter] inputText intent missing "id" or "text" parameter');
-            Vable.sendToolResult(toolName: "inputText", result: "Failed: no field or text was given");
+            Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: "Failed: no field or text was given");
           }
         } else if (intentId == 'goBack') {
           final result = await ScreenScannerManager().goBackForAgent();
-          Vable.sendToolResult(toolName: "goBack", result: result);
+          Vable.sendToolResult(toolName: "goBack", toolId: toolId, result: result);
         } else if (intentId == 'adjustSlider') {
           final elementId = parameters['id']?.toString();
           if (elementId == null) {
-            Vable.sendToolResult(toolName: "adjustSlider", result: "Failed: no slider was given");
+            Vable.sendToolResult(toolName: "adjustSlider", toolId: toolId, result: "Failed: no slider was given");
           } else {
             final result = await ScreenScannerManager().adjustForAgent(
               elementId,
@@ -76,15 +78,15 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
               steps: num.tryParse('${parameters['steps']}')?.toInt() ?? 1,
               target: num.tryParse('${parameters['target']}'),
             );
-            Vable.sendToolResult(toolName: "adjustSlider", result: result);
+            Vable.sendToolResult(toolName: "adjustSlider", toolId: toolId, result: result);
           }
         } else if (intentId == 'scrollScreen') {
           final result = await ScreenScannerManager().scrollForAgent(
             down: parameters['direction']?.toString() != 'up',
           );
-          Vable.sendToolResult(toolName: "scrollScreen", result: result);
+          Vable.sendToolResult(toolName: "scrollScreen", toolId: toolId, result: result);
         } else if (intentId != null) {
-          await Vable.handleIntentEvent(intentId, parameters);
+          await Vable.handleIntentEvent(intentId, parameters, toolId: toolId);
         }
       default:
         VableLogger.error('[VableFlutter] Unknown method call: ${call.method}');

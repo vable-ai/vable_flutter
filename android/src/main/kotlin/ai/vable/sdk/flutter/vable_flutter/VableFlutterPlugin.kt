@@ -6,7 +6,7 @@ import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
 import ai.vable.mobile.Vable
 import ai.vable.mobile.VableEnvironment
-import ai.vable.mobile.VableEventCallback
+import ai.vable.mobile.VableToolEventCallback
 import org.json.JSONArray
 import org.json.JSONObject
 import android.app.Application
@@ -41,14 +41,17 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
     channel.setMethodCallHandler(this)
     application = flutterPluginBinding.applicationContext as? Application
 
-    // Register navigation callback to receive navigation events from Vable SDK
-    Vable.setEventCallback(object : VableEventCallback {
-      override fun onNavigateRequested(url: String) {
+    // Register navigation callback to receive navigation events from Vable SDK.
+    // It hears the ID of each tool call too, which Dart sends back with its result.
+    Vable.setEventCallback(object : VableToolEventCallback {
+      override fun onNavigateRequested(url: String) = onNavigateRequested(url, null)
+
+      override fun onNavigateRequested(url: String, toolId: String?) {
         // Invoke method on Flutter side using the method channel
         // Must be called on main thread
         mainHandler.post {
           try {
-            val args = mapOf("url" to url)
+            val args = mapOf("url" to url, "toolId" to toolId)
             channel.invokeMethod("onNavigate", args)
             logger.d("Navigation event sent to Flutter: $url")
           } catch (e: Exception) {
@@ -57,12 +60,15 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         }
       }
 
-      override fun onIntent(id: String, parameters: JSONObject) {
-        logger.d("onIntent received: id=$id, parameters=$parameters")
+      override fun onIntent(id: String, parameters: JSONObject) = onIntent(id, parameters, null)
+
+      override fun onIntent(id: String, parameters: JSONObject, toolId: String?) {
+        logger.d("onIntent received: id=$id, toolId=$toolId, parameters=$parameters")
         mainHandler.post {
           try {
             val args = mapOf(
               "id" to id,
+              "toolId" to toolId,
               "parameters" to toPlatformValue(parameters)
             )
             channel.invokeMethod("onIntent", args)
