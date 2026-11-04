@@ -203,6 +203,24 @@ void main() {
       expect(areas.rects.single.bottom, list.bottom);
     });
 
+    testWidgets('cover text fields and masks kept out of semantics', (tester) async {
+      final areas = await areasOf(
+        tester,
+        const Column(
+          children: [
+            ExcludeSemantics(child: TextField(key: Key('hidden'))),
+            TextField(key: Key('readOnly'), readOnly: true),
+            ExcludeSemantics(child: VableMask(child: SizedBox(key: Key('card'), width: 40, height: 40))),
+          ],
+        ),
+      );
+
+      final hidden = tester.getRect(find.byKey(const Key('hidden')));
+      expect(areas.rects, hasLength(2));
+      expect(hidden.contains(areas.rects.first.center), isTrue);
+      expect(areas.rects.last, tester.getRect(find.byKey(const Key('card'))));
+    });
+
     testWidgets('notice platform views', (tester) async {
       final areas = await areasOf(tester, const SizedBox(width: 50, height: 50, child: Texture(textureId: 1)));
       expect(areas.platformViews, isTrue);
@@ -312,6 +330,13 @@ void main() {
       frames.stop();
       expect(sent, isEmpty);
     });
+  });
+
+  test('boxes inside another are counted once', () {
+    const outer = Rect.fromLTWH(0, 0, 100, 100);
+    const inner = Rect.fromLTWH(10, 10, 20, 20);
+    const apart = Rect.fromLTWH(200, 0, 10, 10);
+    expect(withoutCovered([inner, outer, apart, outer]), [outer, apart]);
   });
 
   test('frame hash tells different bytes apart', () {

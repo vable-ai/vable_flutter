@@ -116,8 +116,10 @@ typedef VableMarkedAreas = ({List<Rect> rects, bool platformViews});
 
 /// Finds what [VableNoOp] and [VableMask] cover under [root], and whether a
 /// platform view is on screen. It walks what's on screen the way semantics
-/// does, so pages under the top one and hidden tabs are left out, and clips each
-/// area to the scroll views and clips around it.
+/// does, so pages under the top one and hidden tabs are left out, though it goes
+/// into what's only kept out of semantics. It clips each
+/// area to the scroll views and clips around it. Editable and obscured text is
+/// covered too, for fields kept out of the semantics tree.
 VableMarkedAreas markedAreas(RenderObject root) {
   final rects = <Rect>[];
   var platformViews = false;
@@ -132,12 +134,25 @@ VableMarkedAreas markedAreas(RenderObject root) {
       // Everything under it is covered already
       return;
     }
+    if (node is RenderEditable && (!node.readOnly || node.obscureText)) {
+      final area = MatrixUtils.transformRect(node.getTransformTo(null), node.paintBounds)
+          .intersect(clip);
+      if (!area.isEmpty) rects.add(area);
+      return;
+    }
     if (node is PlatformViewRenderBox ||
         node is RenderDarwinPlatformView ||
         node is TextureBox) {
       platformViews = true;
     }
-    node.visitChildrenForSemantics((child) {
+    // These keep children out of semantics only; they're still painted
+    final keepsOutOfSemanticsOnly = node is RenderExcludeSemantics ||
+        node is RenderIgnorePointer ||
+        node is RenderAbsorbPointer ||
+        node is RenderSliverIgnorePointer;
+    final visitShown =
+        keepsOutOfSemanticsOnly ? node.visitChildren : node.visitChildrenForSemantics;
+    visitShown((child) {
       var childClip = clip;
       final local = node.describeApproximatePaintClip(child);
       if (local != null) {
@@ -149,6 +164,28 @@ VableMarkedAreas markedAreas(RenderObject root) {
 
   visit(root, Rect.largest);
   return (rects: rects, platformViews: platformViews);
+}
+
+/// Leaves out boxes that sit inside another one, such as a field inside a
+/// [VableMask], so each area is counted once.
+List<Rect> withoutCovered(List<Rect> rects) {
+  final kept = <Rect>[];
+  for (var i = 0; i < rects.length; i++) {
+    final rect = rects[i];
+    var covered = false;
+    for (var j = 0; j < rects.length && !covered; j++) {
+      if (i == j) continue;
+      final other = rects[j];
+      final inside = other.left <= rect.left &&
+          other.top <= rect.top &&
+          other.right >= rect.right &&
+          other.bottom >= rect.bottom;
+      // Of two identical boxes, the first is kept
+      covered = inside && (other != rect || j < i);
+    }
+    if (!covered) kept.add(rect);
+  }
+  return kept;
 }
 
 /// Covers [masks], given in logical pixels, with solid boxes on [image], which
@@ -371,10 +408,10 @@ class VableScreenFrames {
     if (physical.isEmpty) return null;
     final logical = physical / view.devicePixelRatio;
     final screen = Offset.zero & logical;
-    final masks = [...semantics.rects, ...marked.rects]
+    final masks = withoutCovered([...semantics.rects, ...marked.rects]
         .map((rect) => rect.intersect(screen))
         .where((rect) => !rect.isEmpty)
-        .toList();
+        .toList());
 
     // The root layer scales logical pixels to physical ones, so its bounds are physical
     final pixelRatio = math.min(1.0, width / physical.width);
