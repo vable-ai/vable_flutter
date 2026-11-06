@@ -39,8 +39,14 @@ class MockVableFlutterPlatform
   @override
   Future<bool> isVoiceChatActive() => Future.value(false);
 
+  /// What the last updateIntents call sent.
+  Map<String, dynamic>? lastContext;
+
   @override
-  Future<bool> updateIntents(Map<String, dynamic> contextUpdate) => Future.value(true);
+  Future<bool> updateIntents(Map<String, dynamic> contextUpdate) {
+    lastContext = contextUpdate;
+    return Future.value(true);
+  }
 
   @override
   Future<bool> sendToolResult(String toolName, String? toolId, String result) => Future.value(true);
@@ -63,5 +69,17 @@ void main() {
     VableFlutterPlatform.instance = fakePlatform;
 
     expect(await Vable.getPlatformVersion(), '42');
+  });
+
+  test("sending routes keeps the app's own intents", () async {
+    final platform = MockVableFlutterPlatform();
+    VableFlutterPlatform.instance = platform;
+
+    await Vable.registerIntent(VableIntent(name: 'startErrandRequest', onIntent: (_) => 'ok'));
+    await Vable.initialize('key', routes: [const VableRoute(path: '/home')]);
+
+    final intents = (platform.lastContext!['intents'] as List).map((i) => (i as Map)['name']);
+    expect(intents, contains('startErrandRequest'));
+    expect(platform.lastContext!['routes'], isNotEmpty);
   });
 }

@@ -111,7 +111,7 @@ class Vable {
       _routes = List.of(routes);
       _screenScannerManager.updateRoutes(_routes);
       try {
-        await updateIntents(VableContextUpdate(routes: routes));
+        await _sendRoutes();
       } catch (e) {
         // Log error but don't fail initialization
         VableLogger.error('Warning: Failed to send routes during initialization: $e');
@@ -344,6 +344,14 @@ class Vable {
   /// [contextUpdate] The context update containing intents, routes, and related data.
   /// Returns true if the update was successful.
   /// Throws an Exception if the update fails.
+  /// Sends the routes the scanner manager holds, keeping the intents and state
+  /// the app sent. Sending them through [updateIntents] would replace those.
+  static Future<bool> _sendRoutes() {
+    return VableFlutterPlatform.instance.updateIntents(
+      _screenScannerManager.fullContext().toJson(),
+    );
+  }
+
   static Future<bool> updateIntents(VableContextUpdate contextUpdate) {
     _screenScannerManager.updateHostContext(contextUpdate);
     return VableFlutterPlatform.instance.updateIntents(
@@ -566,7 +574,7 @@ class Vable {
         // Store globally, sync to scanner manager, and send to AI
         _routes = List.of(extractedRoutes);
         _screenScannerManager.updateRoutes(_routes);
-        updateIntents(VableContextUpdate(routes: extractedRoutes)).then((_) {
+        _sendRoutes().then((_) {
           VableLogger.info('[VableFlutter] ✓ Routes sent to AI agent');
         }).catchError((e) {
           VableLogger.error('[VableFlutter] ⚠️ Failed to send routes to AI: $e');
