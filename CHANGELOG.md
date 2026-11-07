@@ -1,6 +1,6 @@
 ## Unreleased
 
-Needs an iOS SDK and an Android SDK that take an access token, which aren't released yet.
+Needs the iOS SDK 0.0.7 and the Android SDK 0.0.1+8.
 
 * Signed-in users: `Vable.initialize(accessToken:)` and `Vable.setAccessToken` pass the user's access token, as the web widget's `accessToken` does. It's sent when each call starts, so the agent knows who the user is.
 
