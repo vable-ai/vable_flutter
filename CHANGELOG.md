@@ -1,4 +1,4 @@
-## Unreleased
+## 0.0.6
 
 Needs the iOS SDK 0.0.7 and the Android SDK 0.0.1+8.
 
