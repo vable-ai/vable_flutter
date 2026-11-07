@@ -4,7 +4,6 @@ import 'vable_flutter_platform_interface.dart';
 import 'src/screen_frames.dart';
 import 'src/screen_scanner_manager.dart';
 import 'src/models/context_models.dart';
-import 'src/route_extractor.dart';
 import 'src/vable_logger.dart';
 
 // Export screen scanner for advanced use cases
@@ -893,8 +892,7 @@ class Vable {
         break;
 
       case VableRoutingLibrary.native:
-      default:
-      navigated = _navigateWithNativeRouter(url);
+        navigated = _navigateWithNativeRouter(url);
         break;
     }
 

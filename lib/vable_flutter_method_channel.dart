@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'vable_flutter.dart';
 import 'vable_flutter_platform_interface.dart';
-import 'src/vable_logger.dart';
 
 /// An implementation of [VableFlutterPlatform] that uses method channels.
 class MethodChannelVableFlutter extends VableFlutterPlatform {

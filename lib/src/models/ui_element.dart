@@ -214,8 +214,9 @@ class FlutterScreenState {
       'screen': screen,
       'elementCount': elements.length,
     };
-    if (elements.isNotEmpty)
+    if (elements.isNotEmpty) {
       map['elements'] = elements.map((e) => e.toJson()).toList();
+    }
     if (metadata.isNotEmpty) map['metadata'] = metadata;
     return map;
   }

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screen_scanner_manager.dart';
 import '../vable_flutter.dart';
-import 'vable_logger.dart';
 
 /// NavigatorObserver that tracks the current screen context and updates
 /// both the ScreenScannerManager and Vable navigation context automatically.
