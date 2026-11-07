@@ -11,9 +11,25 @@ class MockVableFlutterPlatform
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
 
+  /// The access token each initialize or setAccessToken call passed, in order.
+  final List<String?> accessTokens = [];
+
   @override
-  Future<bool> initialize(String publicKey, {String? environment, bool debugLogging = false}) =>
-      Future.value(true);
+  Future<bool> initialize(
+    String publicKey, {
+    String? environment,
+    bool debugLogging = false,
+    String? accessToken,
+  }) {
+    accessTokens.add(accessToken);
+    return Future.value(true);
+  }
+
+  @override
+  Future<void> setAccessToken(String? accessToken) {
+    accessTokens.add(accessToken);
+    return Future.value();
+  }
 
   @override
   Future<void> setMicrophoneMuted(bool muted) => Future.value();
@@ -81,5 +97,16 @@ void main() {
     final intents = (platform.lastContext!['intents'] as List).map((i) => (i as Map)['name']);
     expect(intents, contains('startErrandRequest'));
     expect(platform.lastContext!['routes'], isNotEmpty);
+  });
+
+  test('the access token goes to the platform at initialize and when it changes', () async {
+    final platform = MockVableFlutterPlatform();
+    VableFlutterPlatform.instance = platform;
+
+    await Vable.initialize('key', accessToken: 'first');
+    await Vable.setAccessToken('refreshed');
+    await Vable.setAccessToken(null);
+
+    expect(platform.accessTokens, ['first', 'refreshed', null]);
   });
 }

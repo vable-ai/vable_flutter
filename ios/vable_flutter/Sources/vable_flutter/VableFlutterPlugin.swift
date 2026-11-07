@@ -42,6 +42,10 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case "isVoiceChatActive":
       result(Vable.shared.isVoiceChatActive())
 
+    case "setAccessToken":
+      Vable.shared.setAccessToken((call.arguments as? [String: Any])?["accessToken"] as? String)
+      result(true)
+
     case "setMicrophoneMuted":
       Vable.shared.setMicrophoneMuted((call.arguments as? [String: Any])?["muted"] as? Bool ?? false)
       result(true)
@@ -109,7 +113,11 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       environment = .production
     }
     do {
-      try Vable.shared.initialize(publicKey: publicKey, environment: environment)
+      try Vable.shared.initialize(
+        publicKey: publicKey,
+        environment: environment,
+        accessToken: args["accessToken"] as? String
+      )
       isInitialized = true
       Logger.shared.info("Vable SDK initialized (\(environment.rawValue))")
       result(true)

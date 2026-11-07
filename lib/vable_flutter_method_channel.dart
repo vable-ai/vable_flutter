@@ -119,15 +119,26 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
   }
 
   @override
-  Future<bool> initialize(String publicKey, {String? environment, bool debugLogging = false}) async {
+  Future<bool> initialize(
+    String publicKey, {
+    String? environment,
+    bool debugLogging = false,
+    String? accessToken,
+  }) async {
     try {
       final args = <String, dynamic>{'publicKey': publicKey, 'debugLogging': debugLogging};
       if (environment != null) args['environment'] = environment;
+      if (accessToken != null) args['accessToken'] = accessToken;
       final result = await methodChannel.invokeMethod<bool>('initialize', args);
       return result ?? false;
     } on PlatformException catch (e) {
       throw Exception('Failed to initialize Vable: ${e.message}');
     }
+  }
+
+  @override
+  Future<void> setAccessToken(String? accessToken) async {
+    await methodChannel.invokeMethod<bool>('setAccessToken', {'accessToken': accessToken});
   }
 
   @override

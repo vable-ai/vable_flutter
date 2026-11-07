@@ -31,9 +31,20 @@ abstract class VableFlutterPlatform extends PlatformInterface {
   ///
   /// This must be called before any other Vable methods.
   /// [publicKey] The public key for authentication.
+  /// [accessToken] The signed-in user's token, sent when each call starts.
   /// Returns true if initialization was successful.
-  Future<bool> initialize(String publicKey, {String? environment, bool debugLogging = false}) {
+  Future<bool> initialize(
+    String publicKey, {
+    String? environment,
+    bool debugLogging = false,
+    String? accessToken,
+  }) {
     throw UnimplementedError('initialize() has not been implemented.');
+  }
+
+  /// Set or clear the signed-in user's token, used from the next call.
+  Future<void> setAccessToken(String? accessToken) {
+    throw UnimplementedError('setAccessToken() has not been implemented.');
   }
 
   /// Mute or unmute the microphone.

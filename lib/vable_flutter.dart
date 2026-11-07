@@ -91,18 +91,29 @@ class Vable {
   /// // With routes
   /// final routes = VableRouteExtractor.fromRoutesMap(myAppRoutes);
   /// await Vable.initialize('your-public-key', routes: routes);
+  ///
+  /// // With a signed-in user
+  /// await Vable.initialize('your-public-key', accessToken: session.vableToken);
   /// ```
   ///
   /// [publicKey] Your Vable public key for authentication.
   /// [routes] Optional list of app routes to send to the AI agent.
+  /// [accessToken] The signed-in user's token, so the agent knows who they
+  /// are. Leave it out for guests. See [setAccessToken].
   /// Returns true if initialization was successful.
   /// Throws an Exception if initialization fails.
   static Future<bool> initialize(
     String publicKey, {
     List<VableRoute>? routes,
     String? environment,
+    String? accessToken,
   }) async {
-    final result = await VableFlutterPlatform.instance.initialize(publicKey, environment: environment, debugLogging: VableLogger.enabled);
+    final result = await VableFlutterPlatform.instance.initialize(
+      publicKey,
+      environment: environment,
+      debugLogging: VableLogger.enabled,
+      accessToken: accessToken,
+    );
 
     VableLogger.info('Vable initialized with routes ${routes?.length}');
     // If routes are provided, store and send them to the AI agent
@@ -214,6 +225,23 @@ class Vable {
   /// Mute or unmute the microphone, during a session or ahead of one.
   ///
   /// The agent keeps talking while it's muted, it just can't hear the user.
+  /// Set or clear the signed-in user's access token, for example after they
+  /// sign in or out, or when your app refreshes the token.
+  ///
+  /// The token is a JWT your backend signs with your Vable project's signing
+  /// key, with the user's id in `sub` and optionally `email`, `firstName` and
+  /// `lastName`. It's sent when a call starts, so the agent knows who the user
+  /// is and can act for them. A call that's already running keeps the token
+  /// it started with; the new one is used from the next call. Pass null to
+  /// make the next call a guest call.
+  ///
+  /// ```dart
+  /// await Vable.setAccessToken(newToken);
+  /// ```
+  static Future<void> setAccessToken(String? accessToken) {
+    return VableFlutterPlatform.instance.setAccessToken(accessToken);
+  }
+
   static Future<void> setMicrophoneMuted(bool muted) {
     return VableFlutterPlatform.instance.setMicrophoneMuted(muted);
   }

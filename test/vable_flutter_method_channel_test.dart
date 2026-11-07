@@ -8,11 +8,16 @@ void main() {
   MethodChannelVableFlutter platform = MethodChannelVableFlutter();
   const MethodChannel channel = MethodChannel('vable_flutter');
 
+  final List<MethodCall> calls = [];
+
   setUp(() {
+    calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       channel,
       (MethodCall methodCall) async {
-        return '42';
+        calls.add(methodCall);
+        if (methodCall.method == 'getPlatformVersion') return '42';
+        return true;
       },
     );
   });
@@ -23,5 +28,22 @@ void main() {
 
   test('getPlatformVersion', () async {
     expect(await platform.getPlatformVersion(), '42');
+  });
+
+  test('initialize sends the access token only when there is one', () async {
+    await platform.initialize('pk', accessToken: 'user.jwt.token');
+    await platform.initialize('pk');
+
+    expect(calls[0].method, 'initialize');
+    expect((calls[0].arguments as Map)['accessToken'], 'user.jwt.token');
+    expect((calls[1].arguments as Map).containsKey('accessToken'), isFalse);
+  });
+
+  test('setAccessToken sends the new token, or null to clear it', () async {
+    await platform.setAccessToken('refreshed');
+    await platform.setAccessToken(null);
+
+    expect(calls.map((c) => c.method), ['setAccessToken', 'setAccessToken']);
+    expect(calls.map((c) => (c.arguments as Map)['accessToken']), ['refreshed', null]);
   });
 }

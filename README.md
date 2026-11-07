@@ -79,6 +79,20 @@ The SDK asks for the microphone when the first session starts. Add `VableNavigat
 
 Use `Vable.onVoiceChatEnded` to hear when a session ends, including when the user hangs up or the agent ends the call. `Vable.setMicrophoneMuted(true)` mutes the microphone, during a session or ahead of one.
 
+## Signed-in users
+
+To let the agent know who the user is, and act for them, pass their access token. It's the same token the Vable web widget takes as `accessToken`: a JWT your backend signs with your project's signing key, with the user's id in `sub` and optionally `email`, `firstName` and `lastName`.
+
+```dart
+await Vable.initialize('your-public-key', accessToken: token);
+
+// After sign in, sign out or a token refresh
+await Vable.setAccessToken(newToken);
+await Vable.setAccessToken(null); // the next call is a guest call
+```
+
+The token is sent when a call starts. A call that's already running keeps the token it started with, and a new token is used from the next call. Without a token, calls are guest calls. If the token is invalid or has expired, the call won't start, so refresh it before it expires.
+
 ## How a call looks
 
 During a call, a soft glow runs round the edges of the screen, in one colour. It moves with the agent's voice and the user's, dims while muted, and never blocks a tap. `Vable.setGlowColor(color)` sets its colour.

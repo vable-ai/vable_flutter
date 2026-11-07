@@ -127,7 +127,13 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
           } else {
             VableEnvironment.Production
           }
-          Vable.initialize(publicKey, application!!, ClientType.Flutter, environment)
+          Vable.initialize(
+            publicKey,
+            application!!,
+            ClientType.Flutter,
+            environment,
+            call.argument<String>("accessToken")
+          )
           result.success(true)
         } catch (e: Exception) {
           result.error("INITIALIZATION_ERROR", e.message, null)
@@ -173,6 +179,10 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         } catch (e: Exception) {
           result.error("CHECK_ERROR", e.message, null)
         }
+      }
+      "setAccessToken" -> {
+        Vable.setAccessToken(call.argument<String>("accessToken"))
+        result.success(true)
       }
       "setMicrophoneMuted" -> {
         Vable.setMicrophoneMuted(call.argument<Boolean>("muted") ?: false)

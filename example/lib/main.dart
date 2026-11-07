@@ -24,6 +24,10 @@ class _MyAppState extends State<MyApp> {
   // Replace with your actual Vable public key
   static const String vablePublicKey = 'your-public-key-here';
 
+  // The signed-in user's token, from your backend. Leave it empty for guests.
+  // To try it: flutter run --dart-define=VABLE_ACCESS_TOKEN=<token>
+  static const String vableAccessToken = String.fromEnvironment('VABLE_ACCESS_TOKEN');
+
   @override
   void initState() {
     super.initState();
@@ -52,7 +56,10 @@ class _MyAppState extends State<MyApp> {
         _statusMessage = 'Initializing...';
       });
 
-      final success = await Vable.initialize(vablePublicKey);
+      final success = await Vable.initialize(
+        vablePublicKey,
+        accessToken: vableAccessToken.isEmpty ? null : vableAccessToken,
+      );
 
       setState(() {
         _isInitialized = success;
