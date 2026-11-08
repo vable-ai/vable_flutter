@@ -6,6 +6,8 @@ import ai.vable.mobile.ClientType
 import ai.vable.mobile.Logger
 import ai.vable.mobile.ScreenFramePayload
 import ai.vable.mobile.Vable
+import ai.vable.mobile.VableChatListener
+import ai.vable.mobile.VableChatMessage
 import ai.vable.mobile.VableEnvironment
 import ai.vable.mobile.VableToolEventCallback
 import org.json.JSONArray
@@ -89,6 +91,30 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
 
       override fun onVoiceChatEnded() {
         mainHandler.post { channel.invokeMethod("onVoiceChatEnded", null) }
+      }
+
+      override fun onVoiceChatStarted() {
+        mainHandler.post { channel.invokeMethod("onVoiceChatStarted", null) }
+      }
+    })
+
+    // The chat's lines, failures, opening and closing, for Dart
+    Vable.setChatListener(object : VableChatListener {
+      override fun onMessagesChanged(messages: List<VableChatMessage>) {
+        val maps = messages.map { it.toMap() }
+        mainHandler.post { channel.invokeMethod("onChatUpdated", mapOf("messages" to maps)) }
+      }
+
+      override fun onError(code: String) {
+        mainHandler.post { channel.invokeMethod("onChatError", mapOf("code" to code)) }
+      }
+
+      override fun onChatOpened() {
+        mainHandler.post { channel.invokeMethod("onChatOpened", null) }
+      }
+
+      override fun onChatClosed() {
+        mainHandler.post { channel.invokeMethod("onChatClosed", null) }
       }
     })
   }
@@ -326,6 +352,41 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         result.success(Vable.getScreenFramesConfig()?.toMap())
       }
       "sendScreenFrame" -> sendScreenFrame(call, result)
+      "openChat" -> {
+        try {
+          Vable.openChat(activity)
+          result.success(true)
+        } catch (e: Exception) {
+          result.error("NOT_INITIALIZED", e.message, null)
+        }
+      }
+      "closeChat" -> {
+        Vable.closeChat()
+        result.success(true)
+      }
+      "isChatOpen" -> result.success(Vable.isChatOpen())
+      "sendChatMessage" -> {
+        val text = call.argument<String>("text")
+        if (text == null) {
+          result.error("MISSING_ARGUMENT", "text is required", null)
+          return
+        }
+        Vable.sendMessage(text) { error ->
+          mainHandler.post {
+            if (error == null) result.success(true)
+            else result.error("SEND_ERROR", error.message, null)
+          }
+        }
+      }
+      "getChatMessages" -> result.success(Vable.chatMessages().map { it.toMap() })
+      "startNewChat" -> {
+        Vable.startNewChat()
+        result.success(true)
+      }
+      "setChatButtonVisible" -> {
+        Vable.setChatButtonVisible(call.argument<Boolean>("visible") ?: true)
+        result.success(true)
+      }
       else -> {
         result.notImplemented()
       }
@@ -371,6 +432,7 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
     frameEncoder = null
     // Unregister navigation callback
     Vable.setEventCallback(null)
+    Vable.setChatListener(null)
   }
 
   override fun onAttachedToActivity(binding: ActivityPluginBinding) {

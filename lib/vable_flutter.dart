@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:vable_flutter/src/models/ui_element.dart';
 import 'vable_flutter_platform_interface.dart';
 import 'src/screen_frames.dart';
 import 'src/screen_scanner_manager.dart';
 import 'src/models/context_models.dart';
+import 'src/models/chat_models.dart';
 import 'src/vable_logger.dart';
 
 // Export screen scanner for advanced use cases
@@ -14,6 +17,7 @@ export 'src/vable_navigator_observer.dart';
 export 'src/vable_no_op.dart';
 export 'src/models/ui_element.dart';
 export 'src/models/context_models.dart';
+export 'src/models/chat_models.dart';
 export 'src/route_extractor.dart';
 export 'src/vable_logger.dart';
 
@@ -65,6 +69,29 @@ class Vable {
   /// Called when a session ends for any reason, including the user hanging up
   /// on the voice chat overlay or the agent ending the call.
   static VoidCallback? onVoiceChatEnded;
+
+  /// Called when a call has connected, including one the user started from
+  /// the chat's mic button.
+  static VoidCallback? onVoiceChatStarted;
+
+  /// Called when the chat opens, including when the user switches a call to it.
+  static VoidCallback? onChatOpened;
+
+  /// Called when the chat closes, by the user, your app, or a switch to a call.
+  static VoidCallback? onChatClosed;
+
+  /// Called when a chat turn fails, with `message_failed`, `tokens_exhausted`
+  /// or `connection_failed`. The chat shows the failure itself.
+  static ValueChanged<String>? onChatError;
+
+  /// The context the screen is scanned from while a call or the chat is open.
+  static BuildContext? _scanContext;
+  static bool _callActive = false;
+  static bool _chatOpen = false;
+  static bool _framesStarted = false;
+  static List<VableChatMessage> _chatMessages = const [];
+  static final StreamController<List<VableChatMessage>> _chatController =
+      StreamController<List<VableChatMessage>>.broadcast();
 
   /// All routes known to Vable, populated by [initialize] or [configureRouter].
   static List<VableRoute> _routes = [];
@@ -166,22 +193,44 @@ class Vable {
     }
 
     if (!result) {
-      _screenScannerManager.stopScanning();
+      _syncScanning();
     } else {
       if (context.mounted) {
         // Store the Navigator's context for navigation (never unmounts)
         final navigatorContext = Navigator.maybeOf(context)?.context;
         _navigationContext = navigatorContext ?? context;
+        _scanContext = _navigationContext;
       }
+      _callActive = true;
       await _startScreenFrames();
     }
 
     return result;
   }
 
+  /// Scans the screen while a call or the chat is open, so the agent has it.
+  static void _syncScanning() {
+    final context = _scanContext;
+    if (_callActive || _chatOpen) {
+      if (!_screenScannerManager.isScanning && context != null && context.mounted) {
+        _screenScannerManager.startScanning(context: context, scanInterval: const Duration(seconds: 3));
+      }
+    } else {
+      _screenScannerManager.stopScanning();
+    }
+  }
+
+  static void _rememberContext(BuildContext context) {
+    final navigatorContext = Navigator.maybeOf(context)?.context;
+    _scanContext = navigatorContext ?? context;
+    _navigationContext = _scanContext;
+  }
+
   /// Records what the user sees during the call, if the project turned it on.
   /// The room is created by now, and its response says whether it's on.
   static Future<void> _startScreenFrames() async {
+    if (_framesStarted) return;
+    _framesStarted = true;
     try {
       final config = await VableFlutterPlatform.instance.getScreenFrames();
       _screenScannerManager.frames.start(VableScreenFramesConfig.fromMap(config));
@@ -204,22 +253,113 @@ class Vable {
   /// Returns true if voice chat ended successfully.
   /// Throws an Exception if ending fails.
   static Future<bool> endVoiceChat() async {
-    // Stop screen scanning
-    _screenScannerManager.frames.stop();
-    _screenScannerManager.stopScanning();
-
-    // Clear navigation context
-    _navigationContext = null;
-
+    _endCall();
     return VableFlutterPlatform.instance.endVoiceChat();
+  }
+
+  /// Stops what only a call needs. Scanning carries on while the chat is open.
+  static void _endCall() {
+    _callActive = false;
+    _framesStarted = false;
+    _screenScannerManager.frames.stop();
+    _syncScanning();
+    if (!_chatOpen) _navigationContext = null;
   }
 
   /// Internal method called by the platform implementation when a session ends.
   static void handleVoiceChatEnded() {
-    _screenScannerManager.frames.stop();
-    _screenScannerManager.stopScanning();
-    _navigationContext = null;
+    _endCall();
     onVoiceChatEnded?.call();
+  }
+
+  /// Internal: a call connected, perhaps one the user started from the chat.
+  static Future<void> handleVoiceChatStarted() async {
+    _callActive = true;
+    _syncScanning();
+    await _startScreenFrames();
+    onVoiceChatStarted?.call();
+  }
+
+  // MARK: Text chat
+
+  /// Open the text chat, for users who would rather type.
+  ///
+  /// It rises from the bottom of the screen and leaves your app above it
+  /// usable. Voice and chat share one conversation: the chat carries on from
+  /// a call and the other way round, and the chat has a mic button to switch
+  /// to talking. A call that's running is ended.
+  ///
+  /// ```dart
+  /// IconButton(
+  ///   icon: const Icon(Icons.chat_bubble_outline),
+  ///   onPressed: () => Vable.openChat(context),
+  /// )
+  /// ```
+  static Future<void> openChat(BuildContext context) async {
+    _rememberContext(context);
+    _chatOpen = true;
+    // Scan first, so the agent has the screen and tools by the first message
+    _syncScanning();
+    _setChatMessages(VableChatMessage.listFrom(await VableFlutterPlatform.instance.getChatMessages()));
+    try {
+      await VableFlutterPlatform.instance.openChat();
+    } catch (_) {
+      _chatOpen = false;
+      _syncScanning();
+      rethrow;
+    }
+  }
+
+  /// Close the text chat. A reply still arriving is let finish first, and the
+  /// conversation is kept for the next chat or call.
+  static Future<void> closeChat() => VableFlutterPlatform.instance.closeChat();
+
+  /// Whether the chat is on screen.
+  static Future<bool> isChatOpen() => VableFlutterPlatform.instance.isChatOpen();
+
+  /// Send a message as the user without the chat on screen, for apps that draw
+  /// their own chat. The reply streams into [chatMessages].
+  static Future<void> sendMessage(String text) => VableFlutterPlatform.instance.sendChatMessage(text);
+
+  /// The conversation's lines, each time they change: a new line, or a reply
+  /// growing as it streams in.
+  static Stream<List<VableChatMessage>> get chatMessages => _chatController.stream;
+
+  /// The conversation's lines as last heard from the native SDK, oldest first.
+  static List<VableChatMessage> get currentChatMessages => _chatMessages;
+
+  /// Forget the conversation and start a new one. The chat stays open if it is.
+  static Future<void> startNewChat() => VableFlutterPlatform.instance.startNewChat();
+
+  /// Whether calls show a button to switch to the chat, beside the end button.
+  /// On by default. Takes effect from the next call.
+  static Future<void> setChatButtonVisible(bool visible) =>
+      VableFlutterPlatform.instance.setChatButtonVisible(visible);
+
+  static void _setChatMessages(List<VableChatMessage> messages) {
+    _chatMessages = List.unmodifiable(messages);
+    _chatController.add(_chatMessages);
+  }
+
+  /// Internal: the native chat's lines changed.
+  static void handleChatUpdated(List<VableChatMessage> messages) => _setChatMessages(messages);
+
+  /// Internal: a chat turn failed.
+  static void handleChatError(String code) => onChatError?.call(code);
+
+  /// Internal: the native side opened the chat, perhaps from a call's chat button.
+  static void handleChatOpened() {
+    _chatOpen = true;
+    _syncScanning();
+    onChatOpened?.call();
+  }
+
+  /// Internal: the chat closed.
+  static void handleChatClosed() {
+    _chatOpen = false;
+    _syncScanning();
+    if (!_callActive) _navigationContext = null;
+    onChatClosed?.call();
   }
 
   /// Mute or unmute the microphone, during a session or ahead of one.

@@ -2,7 +2,7 @@ import Flutter
 import UIKit
 import VableAI
 
-public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegate {
+public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegate, VableChatDelegate {
 
   // MARK: - Properties
 
@@ -20,6 +20,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     instance.channel = channel
     registrar.addMethodCallDelegate(instance, channel: channel)
     Vable.shared.setNavigationDelegate(instance)
+    Vable.shared.setChatDelegate(instance)
     Logger.shared.debug("Plugin registered")
   }
 
@@ -89,6 +90,55 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
 
     case "sendScreenFrame":
       handleSendScreenFrame(call: call, result: result)
+
+    case "openChat":
+      guard isInitialized else {
+        result(FlutterError(code: "NOT_INITIALIZED", message: "Vable SDK not initialized. Call initialize() first.", details: nil))
+        return
+      }
+      Task { @MainActor in
+        // Flutter scans its own widget tree, as for calls
+        Vable.shared.openChat(config: Vable.VoiceChatConfig(autoStartScreenScanning: false))
+        result(true)
+      }
+
+    case "closeChat":
+      Task { @MainActor in
+        Vable.shared.closeChat()
+        result(true)
+      }
+
+    case "isChatOpen":
+      result(Vable.shared.isChatOpen)
+
+    case "sendChatMessage":
+      guard let text = (call.arguments as? [String: Any])?["text"] as? String else {
+        result(FlutterError(code: "MISSING_ARGUMENT", message: "text is required", details: nil))
+        return
+      }
+      Task { @MainActor in
+        do {
+          try await Vable.shared.sendMessage(text)
+          result(true)
+        } catch let error as VableError {
+          result(FlutterError(code: self.vableErrorCode(error), message: error.localizedDescription, details: nil))
+        } catch {
+          result(FlutterError(code: "CONNECTION_ERROR", message: error.localizedDescription, details: nil))
+        }
+      }
+
+    case "getChatMessages":
+      result(Vable.shared.chatMessages.map { $0.toDictionary() })
+
+    case "startNewChat":
+      Task { @MainActor in
+        Vable.shared.startNewChat()
+        result(true)
+      }
+
+    case "setChatButtonVisible":
+      Vable.shared.setChatButtonVisible((call.arguments as? [String: Any])?["visible"] as? Bool ?? true)
+      result(true)
 
     default:
       result(FlutterMethodNotImplemented)
@@ -282,12 +332,46 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     }
   }
 
+  public func onVoiceChatStarted() {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onVoiceChatStarted", arguments: nil)
+    }
+  }
+
+  // MARK: - VableChatDelegate
+
+  public func vableChatDidUpdate(_ messages: [VableChatMessage]) {
+    let maps = messages.map { $0.toDictionary() }
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onChatUpdated", arguments: ["messages": maps])
+    }
+  }
+
+  public func vableChatDidFail(_ code: String) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onChatError", arguments: ["code": code])
+    }
+  }
+
+  public func vableChatDidOpen() {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onChatOpened", arguments: nil)
+    }
+  }
+
+  public func vableChatDidClose() {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onChatClosed", arguments: nil)
+    }
+  }
+
   // MARK: - Cleanup
 
   public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
     channel?.setMethodCallHandler(nil)
     channel = nil
     Vable.shared.setNavigationDelegate(nil)
+    Vable.shared.setChatDelegate(nil)
     Logger.shared.debug("Plugin detached")
   }
 
@@ -310,6 +394,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case .connectionFailed:         return "CONNECTION_ERROR"
     case .webRTCError:              return "WEBRTC_ERROR"
     case .natsError:                return "NATS_ERROR"
+    case .chatTurnInProgress:       return "CHAT_BUSY"
     }
   }
 }

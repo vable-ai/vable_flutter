@@ -21,17 +21,37 @@ class _MyAppState extends State<MyApp> {
   bool _isInitialized = false;
   bool _isVoiceChatActive = false;
 
-  // Replace with your actual Vable public key
-  static const String vablePublicKey = 'your-public-key-here';
+  // Replace with your actual Vable public key, or pass one:
+  // flutter run --dart-define=VABLE_PUBLIC_KEY=<key> --dart-define=VABLE_ENV=dev
+  static const String vablePublicKey =
+      String.fromEnvironment('VABLE_PUBLIC_KEY', defaultValue: 'your-public-key-here');
+  static const String vableEnvironment = String.fromEnvironment('VABLE_ENV');
 
   // The signed-in user's token, from your backend. Leave it empty for guests.
   // To try it: flutter run --dart-define=VABLE_ACCESS_TOKEN=<token>
   static const String vableAccessToken = String.fromEnvironment('VABLE_ACCESS_TOKEN');
 
+  /// What the assistant last set with the example's intent
+  String _assistantNote = '';
+
   @override
   void initState() {
     super.initState();
     initPlatformState();
+    Vable.onVoiceChatStarted = () => setState(() => _isVoiceChatActive = true);
+    Vable.onVoiceChatEnded = () => setState(() => _isVoiceChatActive = false);
+    // Something the assistant can do from a call or the chat
+    Vable.registerIntent(VableIntent(
+      name: 'showNote',
+      description: 'Shows a short note on the example app\'s screen',
+      parameters: {
+        'note': IntentParameter(description: 'The note to show', type: 'string', required: true),
+      },
+      onIntent: (parameters) {
+        setState(() => _assistantNote = '${parameters['note'] ?? ''}');
+        return 'The note is on the screen';
+      },
+    ));
   }
 
   Future<void> initPlatformState() async {
@@ -58,6 +78,7 @@ class _MyAppState extends State<MyApp> {
 
       final success = await Vable.initialize(
         vablePublicKey,
+        environment: vableEnvironment.isEmpty ? null : vableEnvironment,
         accessToken: vableAccessToken.isEmpty ? null : vableAccessToken,
       );
 
@@ -122,6 +143,15 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         _statusMessage = 'Error: $e';
       });
+    }
+  }
+
+  /// Opens the text chat, for users who would rather type
+  Future<void> _openChat(BuildContext context) async {
+    try {
+      await Vable.openChat(context);
+    } catch (e) {
+      setState(() => _statusMessage = 'Error: $e');
     }
   }
 
@@ -196,9 +226,24 @@ class _MyAppState extends State<MyApp> {
                 child: const Text('Initialize Vable'),
               ),
               const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: !_isInitialized || _isVoiceChatActive ? null : _startVoiceChat,
-                child: const Text('Start Voice Chat'),
+              // Voice first, with the chat beside it for users who would rather type
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: !_isInitialized || _isVoiceChatActive ? null : _startVoiceChat,
+                      icon: const Icon(Icons.mic),
+                      label: const Text('Start Voice Chat'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    key: const Key('openChat'),
+                    tooltip: 'Chat',
+                    onPressed: _isInitialized ? () => _openChat(context) : null,
+                    icon: const Icon(Icons.chat_bubble_outline),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               ElevatedButton(
@@ -213,6 +258,22 @@ class _MyAppState extends State<MyApp> {
               OutlinedButton(
                 onPressed: _isInitialized ? _checkStatus : null,
                 child: const Text('Check Status'),
+              ),
+              const SizedBox(height: 10),
+              if (_assistantNote.isNotEmpty)
+                Text('Assistant\'s note: $_assistantNote', key: const Key('assistantNote')),
+              // The conversation, as an app with its own chat UI would read it
+              StreamBuilder<List<VableChatMessage>>(
+                stream: Vable.chatMessages,
+                initialData: Vable.currentChatMessages,
+                builder: (context, snapshot) {
+                  final messages = snapshot.data ?? const [];
+                  final last = messages.where((m) => m.role == VableChatRole.assistant).lastOrNull;
+                  return Text(
+                    '${messages.length} chat lines. Last reply: ${last?.text ?? '-'}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  );
+                },
               ),
               const SizedBox(height: 20),
               const Divider(),

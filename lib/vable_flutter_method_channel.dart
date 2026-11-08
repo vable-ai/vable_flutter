@@ -28,6 +28,16 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         }
       case 'onVoiceChatEnded':
         Vable.handleVoiceChatEnded();
+      case 'onVoiceChatStarted':
+        await Vable.handleVoiceChatStarted();
+      case 'onChatUpdated':
+        Vable.handleChatUpdated(VableChatMessage.listFrom(call.arguments?['messages']));
+      case 'onChatError':
+        Vable.handleChatError(call.arguments?['code'] as String? ?? 'message_failed');
+      case 'onChatOpened':
+        Vable.handleChatOpened();
+      case 'onChatClosed':
+        Vable.handleChatClosed();
       case 'onIntent':
         final intentId = call.arguments['id'] as String?;
         // The ID of the agent's tool call, sent back with the result
@@ -218,6 +228,52 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
       }
       throw Exception('Failed to update intents: ${e.message}');
     }
+  }
+
+  @override
+  Future<void> openChat() async {
+    try {
+      await methodChannel.invokeMethod<bool>('openChat');
+    } on PlatformException catch (e) {
+      if (e.code == 'NOT_INITIALIZED') {
+        throw Exception('Vable SDK not initialized. Call initialize() first.');
+      }
+      throw Exception('Failed to open the chat: ${e.message}');
+    }
+  }
+
+  @override
+  Future<void> closeChat() async {
+    await methodChannel.invokeMethod<bool>('closeChat');
+  }
+
+  @override
+  Future<bool> isChatOpen() async {
+    return await methodChannel.invokeMethod<bool>('isChatOpen') ?? false;
+  }
+
+  @override
+  Future<void> sendChatMessage(String text) async {
+    try {
+      await methodChannel.invokeMethod<bool>('sendChatMessage', {'text': text});
+    } on PlatformException catch (e) {
+      throw Exception('Failed to send the message: ${e.message}');
+    }
+  }
+
+  @override
+  Future<List<dynamic>> getChatMessages() async {
+    return await methodChannel.invokeMethod<List<dynamic>>('getChatMessages') ?? const [];
+  }
+
+  @override
+  Future<void> startNewChat() async {
+    await methodChannel.invokeMethod<bool>('startNewChat');
+  }
+
+  @override
+  Future<void> setChatButtonVisible(bool visible) async {
+    await methodChannel.invokeMethod<bool>('setChatButtonVisible', {'visible': visible});
   }
 
   @override

@@ -46,4 +46,16 @@ void main() {
     expect(calls.map((c) => c.method), ['setAccessToken', 'setAccessToken']);
     expect(calls.map((c) => (c.arguments as Map)['accessToken']), ['refreshed', null]);
   });
+
+  test('the chat methods go over the channel', () async {
+    await platform.openChat();
+    await platform.sendChatMessage('Hi');
+    await platform.startNewChat();
+    await platform.setChatButtonVisible(false);
+    await platform.closeChat();
+
+    expect(calls.map((c) => c.method), ['openChat', 'sendChatMessage', 'startNewChat', 'setChatButtonVisible', 'closeChat']);
+    expect((calls[1].arguments as Map)['text'], 'Hi');
+    expect((calls[3].arguments as Map)['visible'], false);
+  });
 }

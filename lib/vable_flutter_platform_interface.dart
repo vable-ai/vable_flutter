@@ -121,4 +121,39 @@ abstract class VableFlutterPlatform extends PlatformInterface {
   Future<Map<dynamic, dynamic>?> getScreenFrames() {
     throw UnimplementedError('getScreenFrames() has not been implemented.');
   }
+
+  /// Open the native text chat.
+  Future<void> openChat() {
+    throw UnimplementedError('openChat() has not been implemented.');
+  }
+
+  /// Close the native text chat.
+  Future<void> closeChat() {
+    throw UnimplementedError('closeChat() has not been implemented.');
+  }
+
+  /// Whether the text chat is on screen.
+  Future<bool> isChatOpen() {
+    throw UnimplementedError('isChatOpen() has not been implemented.');
+  }
+
+  /// Send a message as the user.
+  Future<void> sendChatMessage(String text) {
+    throw UnimplementedError('sendChatMessage() has not been implemented.');
+  }
+
+  /// The conversation's lines, as maps.
+  Future<List<dynamic>> getChatMessages() {
+    throw UnimplementedError('getChatMessages() has not been implemented.');
+  }
+
+  /// Forget the conversation and start a new one.
+  Future<void> startNewChat() {
+    throw UnimplementedError('startNewChat() has not been implemented.');
+  }
+
+  /// Show or hide the chat button on calls.
+  Future<void> setChatButtonVisible(bool visible) {
+    throw UnimplementedError('setChatButtonVisible() has not been implemented.');
+  }
 }
