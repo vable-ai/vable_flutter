@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        // To try an unreleased Android SDK: publishToMavenLocal in vable-android, then
+        // build with VABLE_ANDROID_LOCAL=1
+        if (System.getenv("VABLE_ANDROID_LOCAL") == "1") mavenLocal()
         google()
         mavenCentral()
         maven {

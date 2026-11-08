@@ -40,7 +40,11 @@ class _MyAppState extends State<MyApp> {
     initPlatformState();
     Vable.onVoiceChatStarted = () => setState(() => _isVoiceChatActive = true);
     Vable.onVoiceChatEnded = () => setState(() => _isVoiceChatActive = false);
-    // Something the assistant can do from a call or the chat
+  }
+
+  /// Something the assistant can do from a call or the chat. Registered once
+  /// the SDK is initialized, since Android takes intents only after that.
+  void _registerIntents() {
     Vable.registerIntent(VableIntent(
       name: 'showNote',
       description: 'Shows a short note on the example app\'s screen',
@@ -82,6 +86,7 @@ class _MyAppState extends State<MyApp> {
         accessToken: vableAccessToken.isEmpty ? null : vableAccessToken,
       );
 
+      if (success) _registerIntents();
       setState(() {
         _isInitialized = success;
         _statusMessage = success ? 'Initialized successfully' : 'Initialization failed';

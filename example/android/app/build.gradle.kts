@@ -24,10 +24,15 @@ android {
         applicationId = "ai.vable.sdk.flutter.vable_flutter_example"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 24
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Two of the SDK's dependencies ship the same file
+    packaging {
+        resources.excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
     }
 
     buildTypes {
