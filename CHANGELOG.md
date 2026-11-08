@@ -1,3 +1,11 @@
+## 0.0.7
+
+Needs the iOS SDK 0.0.8 and the Android SDK 0.0.1+9.
+
+* Text chat, for users who would rather type: `Vable.openChat(context)` opens a chat panel that shares one conversation with calls. Its mic button carries the conversation on as a call, and calls get a keyboard button to switch back to the chat. Replies stream in, and the agent can run your intents from the chat as it does on a call.
+* Apps that draw their own chat can use `Vable.sendMessage` and the `Vable.chatMessages` stream instead. `Vable.onChatOpened`, `onChatClosed`, `onChatError` and `onVoiceChatStarted` report what happens.
+* `Vable.setChatButtonVisible(false)` hides the chat button on calls.
+
 ## 0.0.6
 
 Needs the iOS SDK 0.0.7 and the Android SDK 0.0.1+8.
