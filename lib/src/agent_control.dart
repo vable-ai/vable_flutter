@@ -87,6 +87,7 @@ class VableAgentControl {
     if (!call) {
       _agentLoudAt = null;
       _voiceReply = '';
+      _engineState = null;
     }
     _updateState();
   }
@@ -280,7 +281,10 @@ class VableAgentControl {
     final now = DateTime.now();
     if (agent > _speakingLevel) _agentLoudAt = now;
 
-    if (user > _talkingLevel) {
+    // An engine that says when the user speaks is more reliable than their level
+    if (_engineState != null) {
+      // Nothing to work out
+    } else if (user > _talkingLevel) {
       _userLoudSince ??= now;
       if (now.difference(_userLoudSince!) >= _talkingTime) userTurnStarted();
     } else {
@@ -289,6 +293,29 @@ class VableAgentControl {
 
     emit(VableInputLevel(user, agentLevel: agent));
     _updateState();
+  }
+
+  // MARK: The engine's view of the call
+
+  /// What the engine says the agent is doing, on engines that send it.
+  VableAgentState? _engineState;
+
+  void onEngineState(String state) {
+    _engineState = VableAgentState.values.asNameMap()[state];
+    _updateState();
+  }
+
+  void onUserTranscript(String text, {required bool isFinal}) {
+    emit(VableUserTranscript(text, isFinal: isFinal));
+  }
+
+  void onUserSpeechStarted() => userTurnStarted();
+
+  /// The user talked over the agent. Like their voice cutting it off, what it
+  /// was waiting to do on the screen is dropped.
+  void onUserInterrupted() {
+    emit(const VableUserInterrupted());
+    resume(dropWaiting: true);
   }
 
   void onAssistantText(String text, {required bool isFinal}) {
@@ -338,6 +365,8 @@ class VableAgentControl {
     final VableAgentState next;
     if (_waiting > 0 || _started.isNotEmpty) {
       next = VableAgentState.acting;
+    } else if (_callActive && _engineState != null) {
+      next = _engineState!;
     } else if (_callActive &&
         _agentLoudAt != null &&
         now.difference(_agentLoudAt!) < _speakingHangover) {

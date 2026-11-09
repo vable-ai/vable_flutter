@@ -32,6 +32,17 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
           call.arguments?['text'] as String? ?? '',
           isFinal: call.arguments?['isFinal'] as bool? ?? false,
         );
+      case 'onAgentState':
+        _control.onEngineState(call.arguments?['state'] as String? ?? '');
+      case 'onUserTranscript':
+        _control.onUserTranscript(
+          call.arguments?['text'] as String? ?? '',
+          isFinal: call.arguments?['isFinal'] as bool? ?? false,
+        );
+      case 'onUserSpeechStarted':
+        _control.onUserSpeechStarted();
+      case 'onUserInterrupted':
+        _control.onUserInterrupted();
       case 'onVoiceLevels':
         _control.onVoiceLevels(
           (call.arguments?['agent'] as num?)?.toDouble() ?? 0,
@@ -151,6 +162,16 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         ));
         return waited ?? await Vable.runIntentForAgent(intentId, parameters);
     }
+  }
+
+  @override
+  Future<void> cancelTurn() async {
+    await methodChannel.invokeMethod<bool>('cancelTurn');
+  }
+
+  @override
+  Future<void> say(String text) async {
+    await methodChannel.invokeMethod<bool>('say', {'text': text});
   }
 
   @override

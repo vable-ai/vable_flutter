@@ -275,6 +275,55 @@ void main() {
     });
   });
 
+  group('the engine\'s view of the call', () {
+    Future<void> native(String method, [Map<String, dynamic>? args]) =>
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+          'vable_flutter',
+          const StandardMethodCodec().encodeMethodCall(MethodCall(method, args)),
+          (_) {},
+        );
+
+    testWidgets('its state is the agent\'s state on a call', (tester) async {
+      await open(tester, const Text('Home'));
+      await native('onVoiceChatStarted');
+      await native('onAgentState', {'state': 'thinking'});
+      expect(Vable.agentState, VableAgentState.thinking);
+      await native('onAgentState', {'state': 'speaking'});
+      expect(Vable.agentState, VableAgentState.speaking);
+      await native('onVoiceChatEnded');
+      expect(Vable.agentState, VableAgentState.idle);
+      manager.stopScanning();
+    });
+
+    testWidgets('what the user says comes through', (tester) async {
+      await native('onUserTranscript', {'text': 'Find me', 'isFinal': false});
+      await native('onUserTranscript', {'text': 'Find me a hotel.', 'isFinal': true});
+      await tester.pump();
+
+      final transcripts = events.whereType<VableUserTranscript>().toList();
+      expect(transcripts.map((t) => t.text), ['Find me', 'Find me a hotel.']);
+      expect(transcripts.last.isFinal, isTrue);
+    });
+
+    testWidgets('talking over the agent drops what it was waiting to do', (tester) async {
+      var taps = 0;
+      await open(tester, ElevatedButton(onPressed: () => taps++, child: const Text('Search')));
+      Vable.pauseActions();
+      send('clickElement', {'id': idOf('Search')}, 'i1');
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await native('onUserInterrupted');
+      for (var i = 0; i < 10 && results['i1'] == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      manager.stopScanning();
+
+      expect(taps, 0);
+      expect(results['i1'], startsWith('Not done: the user was using the screen'));
+      expect(events.whereType<VableUserInterrupted>(), hasLength(1));
+    });
+  });
+
   group('typing', () {
     testWidgets('can go in a character at a time', (tester) async {
       final controller = TextEditingController();

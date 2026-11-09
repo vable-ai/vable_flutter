@@ -152,10 +152,23 @@ class Vable {
   /// Whether the agent's actions are paused, by you or by the user's touch.
   static bool get actionsPaused => _control.paused;
 
-  /// Stops what the agent is doing on the screen. The action it's waiting to
-  /// do, and any it sends in the next few seconds, are skipped, and it's told
-  /// the user stopped the task. It may still finish what it was saying.
-  static void cancelCurrentTask() => _control.cancel();
+  /// Stops what the agent is doing: what it's saying, the reply it's working
+  /// on, and its actions on the screen. The action it's waiting to do, and any
+  /// that arrive in the next few seconds, are skipped, and it's told the user
+  /// stopped the task. The call or chat carries on.
+  static Future<void> cancelCurrentTask() async {
+    _control.cancel();
+    await VableFlutterPlatform.instance.cancelTurn();
+  }
+
+  /// Has the agent say [text] word for word, on a call or in the chat, as its
+  /// own words: spoken on a call, and kept in the conversation. For short
+  /// prompts your app decides on, such as a question before quick replies.
+  ///
+  /// ```dart
+  /// await Vable.say('Which dates work for you?');
+  /// ```
+  static Future<void> say(String text) => VableFlutterPlatform.instance.say(text);
 
   /// Tells the agent the user changed something themselves, so it doesn't
   /// overwrite it. It hears at its next action. [elementId] is the control's

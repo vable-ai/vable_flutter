@@ -98,9 +98,11 @@ class _HeadlessDemoState extends State<HeadlessDemo> {
       case VableCallEnded():
         setState(() => _inCall = false);
         _log('call', {'state': 'ended'});
-      case VableInputLevel():
-      case VableUserTranscript():
+      case VableUserTranscript(:final text, :final isFinal):
+        if (isFinal) _log('userSaid', {'text': text});
       case VableUserInterrupted():
+        _log('interrupted', {});
+      case VableInputLevel():
         break;
     }
   }
@@ -201,6 +203,30 @@ class _HeadlessDemoState extends State<HeadlessDemo> {
               _log('resumed', {});
             },
             child: const Text('Carry on'),
+          ),
+        if (_inCall)
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  // Your app can speak for the agent, such as before quick replies
+                  onPressed: () {
+                    Vable.say('Which dates work for you?');
+                    _log('said', {});
+                  },
+                  child: const Text('Ask for dates'),
+                ),
+              ),
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    Vable.cancelCurrentTask();
+                    _log('cancelled', {});
+                  },
+                  child: const Text('Stop'),
+                ),
+              ),
+            ],
           ),
         _inCall
             ? OutlinedButton(

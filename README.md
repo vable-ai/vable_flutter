@@ -110,12 +110,14 @@ Apps with their own assistant UI, such as an orb, can turn the SDK's off with `V
 | Event | When |
 |---|---|
 | `VableCallStarted` / `VableCallEnded` | A call connects or ends |
-| `VableAgentStateChanged` | The agent goes `idle`, `listening`, `thinking`, `speaking` or `acting`. On a call, speaking comes from the agent's voice level; `thinking` is only told apart in the text chat for now |
+| `VableAgentStateChanged` | The agent goes `idle`, `listening`, `thinking`, `speaking` or `acting`. On a call the server says which; `acting` also covers your gate and pauses |
+| `VableUserTranscript` | What the user has said so far, then the whole sentence with `isFinal` |
+| `VableUserInterrupted` | The user talked over the agent and it stopped. What it was waiting to do on the screen is dropped |
 | `VableAssistantText` | The agent's reply as it arrives, with `delta`, the whole `text` so far and `isStreaming`. On a call it's a little ahead of the voice |
 | `VableInputLevel` | The mic's level from 0 to 1, about 10 times a second, with the agent's as `agentLevel` |
 | `VableActionStarted` / `VableActionFinished` | The agent acting on the screen: what, on which element and where, then whether it worked and what the agent was told |
 
-`VableUserTranscript` and `VableUserInterrupted` are defined for what the user says and for when they talk over the agent, but aren't sent yet: they need the server to send them.
+The agent's state, the user's transcript and interruptions come from the server, so they need an engine that sends them. With an older one, the state is worked out from the voice levels and no transcripts arrive.
 
 ### Pacing the agent
 
@@ -133,7 +135,7 @@ Vable.setTyping(const VableTyping.perCharacter(Duration(milliseconds: 45)));
 ```
 
 - `Vable.pauseActions()` holds the agent's next action until `Vable.resumeActions()`. The call carries on, so the user can still talk to it.
-- `Vable.cancelCurrentTask()` skips what the agent is waiting to do, and anything it sends in the next few seconds, and tells it the user stopped the task.
+- `Vable.cancelCurrentTask()` stops the agent: what it's saying, the reply it's working on, and what it's waiting to do on the screen, which it's told the user stopped. The call carries on.
 - With `VableCallStyle.none`, the user touching the screen pauses the agent. The pause ends when you resume it, or when the user next talks or types to it; then what it was waiting to do is dropped, since the conversation has moved on. Turn this off with `Vable.pauseOnUserTouch = false`.
 - The agent hears what the user touched with its next action, so it doesn't undo what they did. Wrap your own call UI, such as an end or resume button, in `ExcludeSemantics`: then the agent can't press it, and touching it pauses the agent without telling it about it. Call `Vable.notifyUserInteraction(elementId: id)` for changes you notice yourself.
 
@@ -150,7 +152,7 @@ VableRequiresUser(
 
 ### Asking the user to choose
 
-Give the agent an intent whose handler shows your quick replies and waits for the user's pick. The agent waits for its result.
+Give the agent an intent whose handler shows your quick replies and waits for the user's pick. The agent waits for its result. `Vable.say` speaks the question in the agent's voice, word for word, and keeps it in the conversation.
 
 ```dart
 VableIntent(
@@ -161,6 +163,7 @@ VableIntent(
     'options': IntentParameter(description: 'The choices, comma separated', type: 'string', required: true),
   },
   onIntent: (parameters) async {
+    await Vable.say(parameters['question']);
     final choice = await showQuickReplies(parameters['question'], parameters['options']);
     return 'The user chose $choice';
   },

@@ -103,6 +103,23 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         }
       }
 
+      // Vable calls these on the main thread
+      override fun onAgentState(state: String) {
+        channel.invokeMethod("onAgentState", mapOf("state" to state))
+      }
+
+      override fun onUserTranscript(text: String, isFinal: Boolean) {
+        channel.invokeMethod("onUserTranscript", mapOf("text" to text, "isFinal" to isFinal))
+      }
+
+      override fun onUserSpeechStarted() {
+        channel.invokeMethod("onUserSpeechStarted", null)
+      }
+
+      override fun onUserInterrupted() {
+        channel.invokeMethod("onUserInterrupted", null)
+      }
+
       override fun onVoiceLevels(agent: Float, user: Float) {
         mainHandler.post {
           channel.invokeMethod("onVoiceLevels", mapOf("agent" to agent.toDouble(), "user" to user.toDouble()))
@@ -230,6 +247,14 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         Vable.setCallPillPosition(
           if (call.argument<String>("position") == "top") CallPillPosition.Top else CallPillPosition.Bottom
         )
+        result.success(true)
+      }
+      "cancelTurn" -> {
+        Vable.cancelTurn()
+        result.success(true)
+      }
+      "say" -> {
+        Vable.say(call.argument<String>("text") ?: "")
         result.success(true)
       }
       "setCallStyle" -> {
