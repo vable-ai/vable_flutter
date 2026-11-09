@@ -195,7 +195,7 @@ void main() {
 
       final result = await agent(tester, 'scrollScreen', {'direction': 'down'});
 
-      expect(result, endsWith('Meanwhile the user changed "Check-in" themselves, so leave it as they set it.'));
+      expect(result, endsWith('Meanwhile the user used "Check-in" themselves, so don\'t undo what they did there.'));
       final again = await agent(tester, 'scrollScreen', {'direction': 'down'}, toolId: 't2');
       expect(again, isNot(contains('Meanwhile')));
     });

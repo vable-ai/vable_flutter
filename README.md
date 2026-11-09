@@ -135,7 +135,7 @@ Vable.setTyping(const VableTyping.perCharacter(Duration(milliseconds: 45)));
 - `Vable.pauseActions()` holds the agent's next action until `Vable.resumeActions()`. The call carries on, so the user can still talk to it.
 - `Vable.cancelCurrentTask()` skips what the agent is waiting to do, and anything it sends in the next few seconds, and tells it the user stopped the task.
 - With `VableCallStyle.none`, the user touching the screen pauses the agent. The pause ends when you resume it, or when the user next talks or types to it; then what it was waiting to do is dropped, since the conversation has moved on. Turn this off with `Vable.pauseOnUserTouch = false`.
-- The agent hears what the user touched with its next action, so it doesn't overwrite their change. Call `Vable.notifyUserInteraction(elementId: id)` for changes you notice yourself.
+- The agent hears what the user touched with its next action, so it doesn't undo what they did. Wrap your own call UI, such as an end or resume button, in `ExcludeSemantics`: then the agent can't press it, and touching it pauses the agent without telling it about it. Call `Vable.notifyUserInteraction(elementId: id)` for changes you notice yourself.
 
 ### Things the user must do
 

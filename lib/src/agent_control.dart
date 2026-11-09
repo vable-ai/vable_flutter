@@ -164,8 +164,8 @@ class VableAgentControl {
     _userChanges.clear();
     final note = names.isEmpty
         ? 'Meanwhile the user used the screen themselves, so check it before carrying on.'
-        : 'Meanwhile the user changed ${names.join(', ')} themselves, so leave '
-            '${names.length == 1 ? 'it' : 'them'} as they set ${names.length == 1 ? 'it' : 'them'}.';
+        : 'Meanwhile the user used ${names.join(', ')} themselves, so don\'t undo what '
+            'they did there.';
     return '$result $note'.trim();
   }
 
@@ -187,7 +187,9 @@ class VableAgentControl {
   /// no pointer events.
   void _onPointer(PointerEvent event) {
     if (event is! PointerDownEvent) return;
-    noteUserInteraction(labelAt?.call(event.position));
+    // Only controls the agent can see are worth telling it about
+    final label = labelAt?.call(event.position);
+    if (label != null) noteUserInteraction(label);
     pause(byTouch: true);
   }
 
