@@ -396,6 +396,38 @@ void main() {
   });
 
   group('the user touching the screen', () {
+    testWidgets('pauses the agent, except on the app\'s own assistant UI', (tester) async {
+      Future<void> native(String method) =>
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+            'vable_flutter',
+            const StandardMethodCodec().encodeMethodCall(MethodCall(method)),
+            (_) {},
+          );
+      Vable.pauseOnUserTouch = true;
+      await open(
+        tester,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(onPressed: () {}, child: const Text('Search')),
+            VableAssistantUi(child: TextButton(onPressed: () {}, child: const Text('Stop'))),
+          ],
+        ),
+      );
+      expect(manager.lastClickableElements.map((e) => e.label), isNot(contains('Stop')),
+          reason: 'the agent can\'t see the app\'s own assistant UI');
+      await native('onVoiceChatStarted');
+
+      await tester.tap(find.text('Stop'));
+      expect(Vable.actionsPaused, isFalse);
+      await tester.tap(find.text('Search'));
+      expect(Vable.actionsPaused, isTrue);
+
+      await native('onVoiceChatEnded');
+      Vable.pauseOnUserTouch = false;
+      manager.stopScanning();
+    });
+
     testWidgets('names the control they touched', (tester) async {
       await open(
         tester,

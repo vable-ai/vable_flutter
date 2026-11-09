@@ -180,8 +180,8 @@ class _HeadlessDemoState extends State<HeadlessDemo> {
               ),
             ),
             const Divider(height: 40),
-            // The app's own call UI, kept from the agent
-            ExcludeSemantics(child: _callControls()),
+            // The app's own call UI: kept from the agent, and touching it doesn't pause it
+            VableAssistantUi(child: _callControls()),
           ],
         ),
       ),

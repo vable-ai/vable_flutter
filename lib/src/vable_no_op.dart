@@ -101,3 +101,35 @@ class VableRequiresUser extends StatelessWidget {
     );
   }
 }
+
+/// Identifies the render objects that [VableAssistantUi] creates.
+const Object vableAssistantUiMarker = _VableAssistantUiMarker();
+
+class _VableAssistantUiMarker {
+  const _VableAssistantUiMarker();
+}
+
+/// Marks your own assistant UI, such as an orb, a stop button or quick
+/// replies. The agent can't see or use what's inside it, and the user touching
+/// it doesn't pause the agent, as other touches do with
+/// [VableCallStyle.none].
+///
+/// ```dart
+/// VableAssistantUi(
+///   child: IconButton(icon: const Icon(Icons.stop), onPressed: Vable.cancelCurrentTask),
+/// )
+/// ```
+class VableAssistantUi extends StatelessWidget {
+  const VableAssistantUi({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return MetaData(
+      metaData: vableAssistantUiMarker,
+      behavior: HitTestBehavior.deferToChild,
+      child: ExcludeSemantics(child: child),
+    );
+  }
+}

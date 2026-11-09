@@ -62,6 +62,10 @@ class VableAgentControl {
   /// the user touched. Set by the screen scanner.
   String? Function(Offset position)? labelAt;
 
+  /// Whether a position is in the app's own assistant UI, whose touches don't
+  /// pause the agent. Set by the screen scanner.
+  bool Function(Offset position)? isAssistantUiAt;
+
   // MARK: Session
 
   bool _sessionActive = false;
@@ -188,6 +192,7 @@ class VableAgentControl {
   /// no pointer events.
   void _onPointer(PointerEvent event) {
     if (event is! PointerDownEvent) return;
+    if (isAssistantUiAt?.call(event.position) ?? false) return;
     // Only controls the agent can see are worth telling it about
     final label = labelAt?.call(event.position);
     if (label != null) noteUserInteraction(label);

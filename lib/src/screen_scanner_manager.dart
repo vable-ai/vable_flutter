@@ -55,6 +55,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   ScreenScannerManager._internal() {
     _control.labelAt = labelAt;
+    _control.isAssistantUiAt = _isAssistantUiAt;
   }
 
   VableAgentControl get _control => VableAgentControl.instance;
@@ -155,6 +156,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     _isScanning = true;
     // So a touch can be told to the agent by what was touched
     _control.labelAt = labelAt;
+    _control.isAssistantUiAt = _isAssistantUiAt;
 
     VableLogger.debug('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
 
@@ -526,6 +528,20 @@ class ScreenScannerManager with WidgetsBindingObserver{
     final reason = _requiresUserAt(position);
     if (reason != null) return _waitingForUserResult(reason, canPoint: _control.headless);
     return null;
+  }
+
+  /// Whether [position] is inside a [VableAssistantUi].
+  bool _isAssistantUiAt(Offset position) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      position,
+      WidgetsBinding.instance.platformDispatcher.implicitView!.viewId,
+    );
+    return result.path.any((entry) {
+      final target = entry.target;
+      return target is RenderMetaData && target.metaData == vableAssistantUiMarker;
+    });
   }
 
   /// The reason a [VableRequiresUser] gives, if one covers [position].
