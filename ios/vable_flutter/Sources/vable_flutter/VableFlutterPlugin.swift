@@ -58,7 +58,7 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
 
     case "setCallStyle":
       let style = (call.arguments as? [String: Any])?["style"] as? String
-      Vable.shared.setCallStyle(style == "pill" ? .pill : .glow)
+      Vable.shared.setCallStyle(VableCallStyle(rawValue: style ?? "") ?? .glow)
       result(true)
 
     case "setGlowColor":
@@ -335,6 +335,18 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
   public func onVoiceChatStarted() {
     DispatchQueue.main.async { [weak self] in
       self?.channel?.invokeMethod("onVoiceChatStarted", arguments: nil)
+    }
+  }
+
+  public func onAssistantText(_ text: String, isFinal: Bool) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onAssistantText", arguments: ["text": text, "isFinal": isFinal])
+    }
+  }
+
+  public func onVoiceLevels(agent: Float, user: Float) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onVoiceLevels", arguments: ["agent": agent, "user": user])
     }
   }
 

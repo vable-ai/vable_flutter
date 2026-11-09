@@ -96,6 +96,18 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
       override fun onVoiceChatStarted() {
         mainHandler.post { channel.invokeMethod("onVoiceChatStarted", null) }
       }
+
+      override fun onAssistantText(text: String, isFinal: Boolean) {
+        mainHandler.post {
+          channel.invokeMethod("onAssistantText", mapOf("text" to text, "isFinal" to isFinal))
+        }
+      }
+
+      override fun onVoiceLevels(agent: Float, user: Float) {
+        mainHandler.post {
+          channel.invokeMethod("onVoiceLevels", mapOf("agent" to agent.toDouble(), "user" to user.toDouble()))
+        }
+      }
     })
 
     // The chat's lines, failures, opening and closing, for Dart
@@ -221,7 +233,13 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         result.success(true)
       }
       "setCallStyle" -> {
-        Vable.setCallStyle(if (call.argument<String>("style") == "pill") CallStyle.Pill else CallStyle.Glow)
+        Vable.setCallStyle(
+          when (call.argument<String>("style")) {
+            "pill" -> CallStyle.Pill
+            "none" -> CallStyle.None
+            else -> CallStyle.Glow
+          }
+        )
         result.success(true)
       }
       "setGlowColor" -> {

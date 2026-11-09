@@ -19,6 +19,10 @@ final RegExp _privateFieldLabel = RegExp(
 /// Whether the field at a point on screen is one the app keeps private.
 typedef VablePrivateTest = bool Function(Offset position);
 
+/// Why the control at a position is for the user to do, or null when the agent
+/// may use it.
+typedef VableRequiresUserTest = String? Function(Offset position);
+
 /// What a screen frame has to cover, from the semantics tree.
 typedef VableSemanticsMasks = ({List<Rect> rects, bool platformViews});
 
@@ -91,6 +95,7 @@ class FlutterScreenScanner {
     BuildContext context, {
     String? routeName,
     VablePrivateTest? isPrivateAt,
+    VableRequiresUserTest? requiresUserAt,
   }) async {
     try {
       if (_semantics == null) {
@@ -110,7 +115,7 @@ class FlutterScreenScanner {
       }
       _owner = owner;
 
-      final scan = _Scan(1 / View.of(context).devicePixelRatio, isPrivateAt);
+      final scan = _Scan(1 / View.of(context).devicePixelRatio, isPrivateAt, requiresUserAt);
       scan.visit(root, Matrix4.identity(), null, 0);
 
       _elements = scan.elements;
@@ -196,10 +201,18 @@ class _Scrollable {
 }
 
 class _Scan {
-  _Scan(this.scale, this.isPrivateAt);
+  _Scan(this.scale, this.isPrivateAt, [this.requiresUserAt]);
 
   final double scale;
   final VablePrivateTest? isPrivateAt;
+  final VableRequiresUserTest? requiresUserAt;
+
+  /// Says on a control's label when it's for the user to do, so the agent
+  /// tells them instead of trying it.
+  String _forUser(String label, Rect bounds) {
+    final reason = requiresUserAt?.call(bounds.center);
+    return reason == null ? label : '$label (for the user to do: $reason)';
+  }
   final elements = <FlutterUIElement>[];
   final clickables = <ClickableElement>[];
   final inputs = <InputElement>[];
@@ -319,7 +332,7 @@ class _Scan {
           id: id,
           type: type,
           bounds: bounds,
-          label: _firstText([label, hint]).orElse('Text field'),
+          label: _forUser(_firstText([label, hint]).orElse('Text field'), bounds),
           depth: depth,
           isOffScreen: flags.isHidden,
         ),
@@ -331,7 +344,7 @@ class _Scan {
           id: id,
           type: type,
           bounds: bounds,
-          label: [label, value].where((text) => text.isNotEmpty).join(', '),
+          label: _forUser([label, value].where((text) => text.isNotEmpty).join(', '), bounds),
           depth: depth,
           isOffScreen: flags.isHidden,
         ),
@@ -344,7 +357,7 @@ class _Scan {
           id: id,
           type: type,
           bounds: bounds,
-          label: '$name${_stateOf(flags)}',
+          label: _forUser('$name${_stateOf(flags)}', bounds),
           depth: depth,
           isOffScreen: flags.isHidden,
         ),

@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'agent_control.dart';
 import 'screen_frames.dart';
 import 'screen_scanner.dart';
 import 'vable_no_op.dart';
+import 'models/agent_models.dart';
 import 'models/ui_element.dart';
 import 'models/context_models.dart';
 import 'vable_logger.dart';
@@ -21,6 +23,11 @@ const String _noScrollResult = "Failed: there's nothing more to scroll to that w
 const String _blockedResult =
     'Not done: this app keeps that for the user. Ask them to check it and do it themselves.';
 const String _notAdjustableResult = "Failed: that can't be moved up or down";
+
+/// What the agent is told when it tries a control kept with [VableRequiresUser].
+String _waitingForUserResult(String reason, {required bool canPoint}) =>
+    'Waiting for the user: $reason. This is for them to do, so '
+    '${canPoint ? 'show it to them with pointAt and ' : ''}ask them to do it themselves.';
 
 const Duration _settleInterval = Duration(milliseconds: 400);
 const Duration _minSettleTime = Duration(milliseconds: 800);
@@ -46,7 +53,11 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   factory ScreenScannerManager() => _instance;
 
-  ScreenScannerManager._internal();
+  ScreenScannerManager._internal() {
+    _control.labelAt = labelAt;
+  }
+
+  VableAgentControl get _control => VableAgentControl.instance;
 
   final FlutterScreenScanner _scanner = FlutterScreenScanner();
   final MethodChannel _channel = const MethodChannel('vable_flutter');
@@ -142,6 +153,8 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
     _scanInterval = scanInterval ?? _scanInterval;
     _isScanning = true;
+    // So a touch can be told to the agent by what was touched
+    _control.labelAt = labelAt;
 
     VableLogger.debug('[VableFlutter] Starting screen scanning with interval: ${_scanInterval.inSeconds}s');
 
@@ -194,6 +207,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
         _context!,
         routeName: _routeName,
         isPrivateAt: _isKeptFromAgentAt,
+        requiresUserAt: _requiresUserAt,
       );
 
       if (screenState != null) {
@@ -260,14 +274,26 @@ class ScreenScannerManager with WidgetsBindingObserver{
   /// Taps [id] for the agent and returns what happened, for its tool result.
   ///
   /// Scans first so it acts on what's on screen now, not what the agent last saw.
-  Future<String> clickForAgent(String id) async {
+  Future<String> clickForAgent(String id, {String? actionId}) async {
     final known = _clickable(id);
     await _performScan();
     final element = _clickable(id) ?? _sameElement(_lastClickableElements, known?.label, (e) => e.label);
     if (element == null) return _missingResult(id, _elementGoneResult);
 
     final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
-    if (_isBlockedAt(center)) return _blockedResult;
+    if (_refusalAt(center) case final refused?) return refused;
+
+    final waited = await _waitToAct(
+      VableAction(
+        id: actionId ?? _control.localId(),
+        kind: VableActionKind.click,
+        tool: 'clickElement',
+        args: {'id': id},
+      ),
+      element.id,
+      element.label,
+    );
+    if (waited != null) return waited;
 
     final before = await captureScreen();
     _scanner.tap(element.id);
@@ -276,14 +302,26 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Types [text] into [id] for the agent and returns what happened, for its
   /// tool result.
-  Future<String> inputForAgent(String id, String text) async {
+  Future<String> inputForAgent(String id, String text, {String? actionId}) async {
     final known = _input(id);
     await _performScan();
     final element = _input(id) ?? _sameElement(_lastInputElements, known?.label, (e) => e.label);
     if (element == null) return _missingResult(id, _fieldGoneResult);
 
     final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
-    if (_isBlockedAt(center)) return _blockedResult;
+    if (_refusalAt(center) case final refused?) return refused;
+
+    final waited = await _waitToAct(
+      VableAction(
+        id: actionId ?? _control.localId(),
+        kind: VableActionKind.inputText,
+        tool: 'inputText',
+        args: {'id': id, 'text': text},
+      ),
+      element.id,
+      element.label,
+    );
+    if (waited != null) return waited;
 
     final before = await captureScreen();
     if (!await _typeInto(element.id, text)) return _notTypableResult;
@@ -297,6 +335,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
     required bool up,
     int steps = 1,
     num? target,
+    String? actionId,
   }) async {
     final known = _adjustable(id);
     await _performScan();
@@ -308,7 +347,19 @@ class ScreenScannerManager with WidgetsBindingObserver{
     }
 
     final center = await _bringOnScreen(element.id, element.isOffScreen, element.center);
-    if (_isBlockedAt(center)) return _blockedResult;
+    if (_refusalAt(center) case final refused?) return refused;
+
+    final waited = await _waitToAct(
+      VableAction(
+        id: actionId ?? _control.localId(),
+        kind: VableActionKind.adjust,
+        tool: 'adjustSlider',
+        args: {'id': id, 'direction': up ? 'up' : 'down', 'steps': steps, if (target != null) 'target': target},
+      ),
+      element.id,
+      element.label,
+    );
+    if (waited != null) return waited;
 
     final before = await captureScreen();
     final limit = target == null ? steps.clamp(1, _maxAdjustSteps) : _maxAdjustSteps;
@@ -345,7 +396,14 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Scrolls the main list for the agent and returns what came into view, for
   /// its tool result.
-  Future<String> scrollForAgent({required bool down}) async {
+  Future<String> scrollForAgent({required bool down, String? actionId}) async {
+    final waited = await _control.beforeAct(VableAction(
+      id: actionId ?? _control.localId(),
+      kind: VableActionKind.scroll,
+      tool: 'scrollScreen',
+      args: {'direction': down ? 'down' : 'up'},
+    ));
+    if (waited != null) return waited;
     await _performScan();
     final before = await captureScreen();
     if (!_scanner.scroll(down: down)) return _noScrollResult;
@@ -354,7 +412,14 @@ class ScreenScannerManager with WidgetsBindingObserver{
 
   /// Goes back for the agent and returns what it found, for its tool result.
   /// Back arrows are often icons with no label, which would leave it stuck.
-  Future<String> goBackForAgent() async {
+  Future<String> goBackForAgent({String? actionId}) async {
+    if (_navigatorWithHistory() == null) return _noBackResult;
+    final waited = await _control.beforeAct(VableAction(
+      id: actionId ?? _control.localId(),
+      kind: VableActionKind.goBack,
+      tool: 'goBack',
+    ));
+    if (waited != null) return waited;
     final navigator = _navigatorWithHistory();
     if (navigator == null) return _noBackResult;
 
@@ -427,18 +492,130 @@ class ScreenScannerManager with WidgetsBindingObserver{
         ?.findAncestorStateOfType<EditableTextState>();
     if (field == null) return false;
 
-    field.updateEditingValue(TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    ));
+    final delay = _control.typing.perCharacter;
+    if (delay == null || text.isEmpty) {
+      field.updateEditingValue(TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      ));
+    } else {
+      // Character by character, so the user sees it typed. Like typing all at
+      // once, it replaces what was there.
+      final characters = text.characters.toList();
+      var typed = '';
+      for (var i = 0; i < characters.length; i++) {
+        if (!field.mounted) return false;
+        typed += characters[i];
+        field.updateEditingValue(TextEditingValue(
+          text: typed,
+          selection: TextSelection.collapsed(offset: typed.length),
+        ));
+        if (i < characters.length - 1) await Future.delayed(delay);
+      }
+    }
     // The agent is typing, so the keyboard would only cover the screen
     field.widget.focusNode.unfocus();
     return true;
   }
 
-  /// Hit tests like a real tap, because a tap lands by position: a clickable
-  /// parent's centre can sit on a [VableNoOp] that it doesn't otherwise know of.
-  bool _isBlockedAt(Offset position) => _isKeptFromAgentAt(position);
+  /// Why the agent can't act at [position], or null when it can. Hit tests
+  /// like a real tap, because a tap lands by position: a clickable parent's
+  /// centre can sit on a [VableNoOp] that it doesn't otherwise know of.
+  String? _refusalAt(Offset position) {
+    if (_isKeptFromAgentAt(position)) return _blockedResult;
+    final reason = _requiresUserAt(position);
+    if (reason != null) return _waitingForUserResult(reason, canPoint: _control.headless);
+    return null;
+  }
+
+  /// The reason a [VableRequiresUser] gives, if one covers [position].
+  String? _requiresUserAt(Offset position) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      position,
+      WidgetsBinding.instance.platformDispatcher.implicitView!.viewId,
+    );
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (target is RenderMetaData && target.metaData is VableRequiresUserMarker) {
+        return (target.metaData as VableRequiresUserMarker).reason;
+      }
+    }
+    return null;
+  }
+
+  /// Waits for the app to let the agent act on [elementId], through any
+  /// pause and its gate. Then finds the element again, since the screen may
+  /// have changed meanwhile. Returns the result to give the agent instead, or
+  /// null to go ahead.
+  Future<String?> _waitToAct(VableAction action, String elementId, String label) async {
+    final waited = await _control.beforeAct(
+      action.withElement(elementId: elementId, label: label, bounds: _boundsOf(elementId)),
+    );
+    if (waited != null) return waited;
+
+    await _performScan();
+    if (_boundsOf(elementId) != null) return null;
+    // It went while the app or the user held the agent back
+    final result = _missingResult(elementId, _elementGoneResult);
+    return result;
+  }
+
+  /// Where an element was in the latest scan.
+  Rect? _boundsOf(String id) =>
+      _clickable(id)?.bounds ?? _input(id)?.bounds ?? _adjustable(id)?.bounds;
+
+  /// The label of the smallest control at [position], from the latest scan.
+  String? labelAt(Offset position) {
+    String? label;
+    double? smallest;
+    void consider(Rect bounds, String name) {
+      if (!bounds.contains(position)) return;
+      final area = bounds.width * bounds.height;
+      if (smallest == null || area < smallest!) {
+        smallest = area;
+        label = name;
+      }
+    }
+
+    for (final e in _lastClickableElements) {
+      consider(e.bounds, e.label);
+    }
+    for (final e in _lastInputElements) {
+      consider(e.bounds, e.label);
+    }
+    for (final e in _lastAdjustableElements) {
+      consider(e.bounds, e.label);
+    }
+    return label;
+  }
+
+  /// Shows the user a control without touching it, by telling the app to
+  /// highlight it, and returns the result for the agent.
+  Future<String> pointAtForAgent(String id, {String? actionId}) async {
+    await _performScan();
+    final bounds = _boundsOf(id);
+    if (bounds == null) return _missingResult(id, _elementGoneResult);
+
+    final clickable = _clickable(id);
+    final input = _input(id);
+    final adjustable = _adjustable(id);
+    final label = clickable?.label ?? input?.label ?? adjustable?.label;
+    final offScreen = clickable?.isOffScreen ?? input?.isOffScreen ?? adjustable?.isOffScreen ?? false;
+    await _bringOnScreen(id, offScreen, bounds.center);
+
+    _control.start(VableAction(
+      id: actionId ?? _control.localId(),
+      kind: VableActionKind.pointAt,
+      tool: 'pointAt',
+      elementId: id,
+      label: label,
+      bounds: _boundsOf(id) ?? bounds,
+      args: {'id': id},
+    ));
+    return 'Shown to the user. Tell them what to do with it.';
+  }
 
   /// Whether a [VableNoOp] covers [position]. Fields inside one are private too.
   bool _isKeptFromAgentAt(Offset position) {
@@ -462,6 +639,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
       _context!,
       routeName: _routeName,
       isPrivateAt: _isKeptFromAgentAt,
+        requiresUserAt: _requiresUserAt,
     );
     if (screenState == null) return null;
 
@@ -687,6 +865,26 @@ class ScreenScannerManager with WidgetsBindingObserver{
               ),
             },
           ),
+        if (_control.headless &&
+            (clickables.isNotEmpty || inputs.isNotEmpty || _lastAdjustableElements.isNotEmpty))
+          VableIntent(
+            name: 'pointAt',
+            description:
+                'Show the user a control on the current screen by highlighting '
+                'it, without touching it. Use it for things the user must do '
+                'themselves, then tell them what to do.',
+            parameters: {
+              'id': IntentParameter(
+                description: 'The scan ID of the control to show.',
+                type: 'string',
+                required: true,
+                options: [...clickables, ..._lastAdjustableElements]
+                    .map((e) => ToolParameterOption(label: e.label, value: e.id))
+                    .followedBy(inputs.map((e) => ToolParameterOption(label: e.label, value: e.id)))
+                    .toList(),
+              ),
+            },
+          ),
         if (_scanner.canScroll)
           VableIntent(
             name: 'scrollScreen',
@@ -719,6 +917,7 @@ class ScreenScannerManager with WidgetsBindingObserver{
       context,
       routeName: _routeName,
       isPrivateAt: _isKeptFromAgentAt,
+        requiresUserAt: _requiresUserAt,
     );
   }
 

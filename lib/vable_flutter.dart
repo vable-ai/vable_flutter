@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vable_flutter/src/models/ui_element.dart';
 import 'vable_flutter_platform_interface.dart';
+import 'src/agent_control.dart';
 import 'src/screen_frames.dart';
 import 'src/screen_scanner_manager.dart';
 import 'src/models/context_models.dart';
+import 'src/models/agent_models.dart';
 import 'src/models/chat_models.dart';
 import 'src/vable_logger.dart';
 
@@ -17,6 +19,7 @@ export 'src/vable_navigator_observer.dart';
 export 'src/vable_no_op.dart';
 export 'src/models/ui_element.dart';
 export 'src/models/context_models.dart';
+export 'src/models/agent_models.dart';
 export 'src/models/chat_models.dart';
 export 'src/route_extractor.dart';
 export 'src/vable_logger.dart';
@@ -33,6 +36,12 @@ enum VableCallStyle {
 
   /// A small pill with the call's status and a button to hang up
   pill,
+
+  /// Nothing on screen: no glow, pill or buttons. Your app draws the call from
+  /// [Vable.events] and ends it with [Vable.endVoiceChat]. The agent also gets
+  /// a `pointAt` tool, for showing the user a control, and the user's touches
+  /// pause it unless you turn [Vable.pauseOnUserTouch] off.
+  none,
 }
 
 /// Supported routing libraries for AI-driven navigation
@@ -83,6 +92,93 @@ class Vable {
   /// Called when a chat turn fails, with `message_failed`, `tokens_exhausted`
   /// or `connection_failed`. The chat shows the failure itself.
   static ValueChanged<String>? onChatError;
+
+  // MARK: Your own call UI
+
+  static VableAgentControl get _control => VableAgentControl.instance;
+
+  /// What happens in calls and the chat, for apps that draw their own UI with
+  /// [VableCallStyle.none]: the agent's state, its reply as it arrives, the
+  /// mic level, and each action it takes on the screen.
+  ///
+  /// ```dart
+  /// Vable.events.listen((event) {
+  ///   switch (event) {
+  ///     case VableAgentStateChanged(:final state): orb.state = state;
+  ///     case VableInputLevel(:final level): orb.level = level;
+  ///     case VableActionStarted(:final action): highlight(action.bounds);
+  ///     default:
+  ///   }
+  /// });
+  /// ```
+  static Stream<VableEvent> get events => _control.events;
+
+  /// What the agent is doing now. [events] says when it changes.
+  static VableAgentState get agentState => _control.state;
+
+  /// Runs before each thing the agent does on the screen, once its target is
+  /// found and scrolled into view: taps, typing, scrolling, going back,
+  /// sliders, navigation and your own intents. The agent waits until it
+  /// returns, so you can highlight [VableAction.bounds] first. Return false to
+  /// skip it, and the agent is told the user declined. Pass null to remove it.
+  ///
+  /// ```dart
+  /// Vable.setActionGate((action) async {
+  ///   showHighlight(action.bounds);
+  ///   await Future.delayed(const Duration(milliseconds: 400));
+  ///   return true;
+  /// });
+  /// ```
+  ///
+  /// In the text chat, keep it under a minute: a chat reply is given up on 90
+  /// seconds after the agent's last action.
+  static void setActionGate(VableActionGate? gate) => _control.gate = gate;
+
+  /// How the agent types into fields: all at once (the default), or one
+  /// character at a time so the user sees it typed.
+  ///
+  /// ```dart
+  /// Vable.setTyping(const VableTyping.perCharacter(Duration(milliseconds: 45)));
+  /// ```
+  static void setTyping(VableTyping typing) => _control.typing = typing;
+
+  /// Holds the agent's next action until [resumeActions]. The call and the
+  /// conversation carry on, so the user can still talk to it.
+  static void pauseActions() => _control.pause();
+
+  /// Lets the agent carry on with the action it was waiting to do.
+  static void resumeActions() => _control.resume();
+
+  /// Whether the agent's actions are paused, by you or by the user's touch.
+  static bool get actionsPaused => _control.paused;
+
+  /// Stops what the agent is doing on the screen. The action it's waiting to
+  /// do, and any it sends in the next few seconds, are skipped, and it's told
+  /// the user stopped the task. It may still finish what it was saying.
+  static void cancelCurrentTask() => _control.cancel();
+
+  /// Tells the agent the user changed something themselves, so it doesn't
+  /// overwrite it. It hears at its next action. [elementId] is the control's
+  /// `s_<n>` id; or give its [label].
+  static void notifyUserInteraction({String? elementId, String? label}) {
+    final scanner = _screenScannerManager;
+    final name = label ??
+        [...scanner.lastClickableElements, ...scanner.lastAdjustableElements]
+            .where((e) => e.id == elementId)
+            .map((e) => e.label)
+            .followedBy(scanner.lastInputElements.where((e) => e.id == elementId).map((e) => e.label))
+            .firstOrNull;
+    _control.noteUserInteraction(name);
+  }
+
+  /// Whether the user touching the screen pauses the agent, during a call or
+  /// while the chat is open. The agent's own taps don't count. The pause ends
+  /// when you call [resumeActions], or when the user next talks or types to
+  /// the agent; then what it was waiting to do is dropped, since the
+  /// conversation has moved on. Either way, it hears what the user touched.
+  /// On by default with [VableCallStyle.none], and off otherwise.
+  static bool get pauseOnUserTouch => _control.pauseOnUserTouch;
+  static set pauseOnUserTouch(bool value) => _control.pauseOnUserTouch = value;
 
   /// The context the screen is scanned from while a call or the chat is open.
   static BuildContext? _scanContext;
@@ -202,6 +298,7 @@ class Vable {
         _scanContext = _navigationContext;
       }
       _callActive = true;
+      _syncScanning();
       await _startScreenFrames();
     }
 
@@ -210,6 +307,7 @@ class Vable {
 
   /// Scans the screen while a call or the chat is open, so the agent has it.
   static void _syncScanning() {
+    _control.setSession(call: _callActive, chat: _chatOpen);
     final context = _scanContext;
     if (_callActive || _chatOpen) {
       if (!_screenScannerManager.isScanning && context != null && context.mounted) {
@@ -319,7 +417,10 @@ class Vable {
 
   /// Send a message as the user without the chat on screen, for apps that draw
   /// their own chat. The reply streams into [chatMessages].
-  static Future<void> sendMessage(String text) => VableFlutterPlatform.instance.sendChatMessage(text);
+  static Future<void> sendMessage(String text) {
+    _control.userTurnStarted();
+    return VableFlutterPlatform.instance.sendChatMessage(text);
+  }
 
   /// The conversation's lines, each time they change: a new line, or a reply
   /// growing as it streams in.
@@ -342,7 +443,10 @@ class Vable {
   }
 
   /// Internal: the native chat's lines changed.
-  static void handleChatUpdated(List<VableChatMessage> messages) => _setChatMessages(messages);
+  static void handleChatUpdated(List<VableChatMessage> messages) {
+    _setChatMessages(messages);
+    _control.onChatMessages(messages);
+  }
 
   /// Internal: a chat turn failed.
   static void handleChatError(String code) => onChatError?.call(code);
@@ -393,9 +497,11 @@ class Vable {
     return VableFlutterPlatform.instance.setCallPillPosition(position.name);
   }
 
-  /// Show calls as a glow round the edges of the screen (the default) or as
-  /// the pill. Takes effect from the next session.
+  /// Show calls as a glow round the edges of the screen (the default), as the
+  /// pill, or not at all with [VableCallStyle.none] for apps that draw their
+  /// own. Takes effect from the next session.
   static Future<void> setCallStyle(VableCallStyle style) {
+    _control.headless = style == VableCallStyle.none;
     return VableFlutterPlatform.instance.setCallStyle(style.name);
   }
 
@@ -561,20 +667,27 @@ class Vable {
     Map<String, dynamic> parameters, {
     String? toolId,
   }) async {
+    await sendToolResult(
+      toolName: name,
+      toolId: toolId,
+      result: await runIntentForAgent(name, parameters),
+    );
+  }
+
+  /// Runs the app's handler for an intent the agent called, and returns what
+  /// to tell the agent.
+  static Future<String> runIntentForAgent(String name, Map<String, dynamic> parameters) async {
     final handler = _screenScannerManager.intentHandler(name);
     if (handler == null) {
       VableLogger.error('[VableFlutter] No handler for intent $name. Give it an onIntent.');
-      await sendToolResult(
-          toolName: name, toolId: toolId, result: "Failed: this app can't do that yet");
-      return;
+      return "Failed: this app can't do that yet";
     }
 
     try {
-      final result = await handler(parameters);
-      await sendToolResult(toolName: name, toolId: toolId, result: result ?? 'Done.');
+      return (await handler(parameters)) ?? 'Done.';
     } catch (e) {
       VableLogger.error('[VableFlutter] Intent $name failed: $e');
-      await sendToolResult(toolName: name, toolId: toolId, result: 'Failed: $e');
+      return 'Failed: $e';
     }
   }
 
@@ -1030,6 +1143,11 @@ class Vable {
   /// Called by the platform implementation when the AI agent requests navigation.
   /// [toolId] is the ID of the agent's tool call, sent back with the result.
   static Future<void> handleNavigationEvent(String url, {String? toolId}) async {
+    await sendToolResult(toolName: "navigate", toolId: toolId, result: await navigateForAgent(url));
+  }
+
+  /// Opens [url] for the agent, and returns what to tell it.
+  static Future<String> navigateForAgent(String url) async {
     VableLogger.info('[VableFlutter] Navigation event received: $url');
 
     final before = await _screenScannerManager.captureScreen();
@@ -1037,15 +1155,15 @@ class Vable {
     // Priority 1: Custom callback (complete override)
     if (_navigationCallback != null) {
       VableLogger.debug('[VableFlutter] Using custom navigation callback');
+      var navigated = false;
       try {
         _navigationCallback!(url);
+        navigated = true;
         VableLogger.info('[VableFlutter] ✓ Successfully navigated to $url');
-        await _sendNavigationResult(url, true, before, toolId);
       } catch (e) {
         VableLogger.error('[VableFlutter] ❌ Error in custom navigation callback: $e');
-        await _sendNavigationResult(url, false, before, toolId);
       }
-      return;
+      return _navigationResult(url, navigated, before);
     }
 
     var navigated = false;
@@ -1064,31 +1182,22 @@ class Vable {
         break;
     }
 
-    await _sendNavigationResult(url, navigated, before, toolId);
+    return _navigationResult(url, navigated, before);
   }
 
-  static Future<void> _sendNavigationResult(
+  static Future<String> _navigationResult(
     String url,
     bool navigated,
     VableScreenSnapshot? before,
-    String? toolId,
   ) async {
-    if (!navigated) {
-      sendToolResult(toolName: "navigate", toolId: toolId, result: "Failed: couldn't open $url");
-      return;
-    }
+    if (!navigated) return "Failed: couldn't open $url";
     final change = await _screenScannerManager.describeChangeSince(before);
     if (await _screenScannerManager.leaveEmptyScreen()) {
-      sendToolResult(
-        toolName: "navigate",
-        toolId: toolId,
-        result: "Failed: $url came up empty, so it was closed. It needs something "
-            "picked first. Open it yourself by tapping what leads there, such as "
-            "a tab, card or button, rather than asking the user to.",
-      );
-      return;
+      return "Failed: $url came up empty, so it was closed. It needs something "
+          "picked first. Open it yourself by tapping what leads there, such as "
+          "a tab, card or button, rather than asking the user to.";
     }
-    sendToolResult(toolName: "navigate", toolId: toolId, result: "Went to $url. $change".trim());
+    return "Went to $url. $change".trim();
   }
 
   /// Navigate using GoRouter (go_router package)
