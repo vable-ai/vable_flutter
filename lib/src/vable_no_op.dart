@@ -63,3 +63,73 @@ class VableMask extends StatelessWidget {
     );
   }
 }
+
+/// Marks the render objects that [VableRequiresUser] creates, with its reason.
+class VableRequiresUserMarker {
+  const VableRequiresUserMarker(this.reason);
+
+  final String reason;
+}
+
+/// Keeps [child] for the user to do themselves, such as paying or sharing a
+/// passport, while the agent can still see it and tell them about it. When the
+/// agent tries to use it, it's told it's waiting for the user and why. With
+/// [VableCallStyle.none], it can point at it so your app can highlight it.
+///
+/// Unlike [VableNoOp], the agent sees it and can scroll and navigate around it.
+///
+/// ```dart
+/// VableRequiresUser(
+///   reason: 'payment',
+///   child: FilledButton(onPressed: pay, child: Text('Pay £240')),
+/// )
+/// ```
+class VableRequiresUser extends StatelessWidget {
+  const VableRequiresUser({super.key, required this.reason, required this.child});
+
+  /// A few words for why, which the agent can repeat, such as "payment"
+  final String reason;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return MetaData(
+      metaData: VableRequiresUserMarker(reason),
+      behavior: HitTestBehavior.deferToChild,
+      child: child,
+    );
+  }
+}
+
+/// Identifies the render objects that [VableAssistantUi] creates.
+const Object vableAssistantUiMarker = _VableAssistantUiMarker();
+
+class _VableAssistantUiMarker {
+  const _VableAssistantUiMarker();
+}
+
+/// Marks your own assistant UI, such as an orb, a stop button or quick
+/// replies. The agent can't see or use what's inside it, and the user touching
+/// it doesn't pause the agent, as other touches do with
+/// [VableCallStyle.none].
+///
+/// ```dart
+/// VableAssistantUi(
+///   child: IconButton(icon: const Icon(Icons.stop), onPressed: Vable.cancelCurrentTask),
+/// )
+/// ```
+class VableAssistantUi extends StatelessWidget {
+  const VableAssistantUi({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return MetaData(
+      metaData: vableAssistantUiMarker,
+      behavior: HitTestBehavior.deferToChild,
+      child: ExcludeSemantics(child: child),
+    );
+  }
+}

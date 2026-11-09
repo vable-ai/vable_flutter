@@ -4,7 +4,18 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:vable_flutter/vable_flutter.dart';
 
+import 'headless_demo.dart';
+
 void main() {
+  // An app that draws the agent's UI itself: --dart-define=VABLE_HEADLESS=true
+  if (const bool.fromEnvironment('VABLE_HEADLESS')) {
+    const environment = String.fromEnvironment('VABLE_ENV');
+    runApp(const HeadlessDemo(
+      publicKey: _MyAppState.vablePublicKey,
+      environment: environment == '' ? null : environment,
+    ));
+    return;
+  }
   runApp(const MyApp());
 }
 

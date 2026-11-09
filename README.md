@@ -101,6 +101,75 @@ There's no status text. A small round end button rests on the right edge, fades 
 
 For the older pill, with its status and a hang-up button, call `Vable.setCallStyle(VableCallStyle.pill)` before starting. `Vable.setCallPillPosition(VableCallPillPosition.top)` moves it up if it covers your tabs.
 
+## Drawing the call yourself
+
+Apps with their own assistant UI, such as an orb, can turn the SDK's off with `Vable.setCallStyle(VableCallStyle.none)`. Nothing native is drawn: no glow, pill or buttons. End the call with `Vable.endVoiceChat()`.
+
+`Vable.events` tells you what's happening:
+
+| Event | When |
+|---|---|
+| `VableCallStarted` / `VableCallEnded` | A call connects or ends |
+| `VableAgentStateChanged` | The agent goes `idle`, `listening`, `thinking`, `speaking` or `acting`. On a call the server says which; `acting` also covers your gate and pauses |
+| `VableUserTranscript` | What the user has said so far, then the whole sentence with `isFinal` |
+| `VableUserInterrupted` | The user talked over the agent and it stopped. What it was waiting to do on the screen is dropped |
+| `VableAssistantText` | The agent's reply as it arrives, with `delta`, the whole `text` so far and `isStreaming`. On a call it's a little ahead of the voice |
+| `VableInputLevel` | The mic's level from 0 to 1, about 10 times a second, with the agent's as `agentLevel` |
+| `VableActionStarted` / `VableActionFinished` | The agent acting on the screen: what, on which element and where, then whether it worked and what the agent was told |
+
+The agent's state, the user's transcript and interruptions come from the server, so they need an engine that sends them. With an older one, the state is worked out from the voice levels and no transcripts arrive.
+
+### Pacing the agent
+
+The agent normally acts as fast as it can. To show the user what's coming, give it a gate. It runs before every tap, text entry, scroll, back, slider, navigation and intent, once the target is on screen, and the agent waits for it:
+
+```dart
+Vable.setActionGate((action) async {
+  highlight(action.bounds);
+  await Future.delayed(const Duration(milliseconds: 400));
+  return true; // false skips it, and the agent hears the user declined
+});
+
+// Type so the user sees it, instead of all at once
+Vable.setTyping(const VableTyping.perCharacter(Duration(milliseconds: 45)));
+```
+
+- `Vable.pauseActions()` holds the agent's next action until `Vable.resumeActions()`. The call carries on, so the user can still talk to it.
+- `Vable.cancelCurrentTask()` stops the agent: what it's saying, the reply it's working on, and what it's waiting to do on the screen, which it's told the user stopped. The call carries on.
+- With `VableCallStyle.none`, the user touching the screen pauses the agent. The pause ends when you resume it, or when the user next talks or types to it; then what it was waiting to do is dropped, since the conversation has moved on. Turn this off with `Vable.pauseOnUserTouch = false`.
+- The agent hears what the user touched with its next action, so it doesn't undo what they did. Wrap your own assistant UI, such as an orb, a stop button or quick replies, in `VableAssistantUi`: then the agent can't see or press it, and touching it doesn't pause the agent. Call `Vable.notifyUserInteraction(elementId: id)` for changes you notice yourself.
+
+### Things the user must do
+
+Wrap a control in `VableRequiresUser` to keep it for the user while the agent can still see it, such as paying or sharing a passport. When the agent tries it, it's told it's waiting for the user, and why. With `VableCallStyle.none` it also gets a `pointAt` tool, reported as a `pointAt` action, so you can highlight the control for the user.
+
+```dart
+VableRequiresUser(
+  reason: 'payment',
+  child: FilledButton(onPressed: pay, child: const Text('Pay £240')),
+)
+```
+
+### Asking the user to choose
+
+Give the agent an intent whose handler shows your quick replies and waits for the user's pick. The agent waits for its result. `Vable.say` speaks the question in the agent's voice, word for word, and keeps it in the conversation.
+
+```dart
+VableIntent(
+  name: 'askUser',
+  description: 'Ask the user to pick one of a few options',
+  parameters: {
+    'question': IntentParameter(description: 'The question', type: 'string', required: true),
+    'options': IntentParameter(description: 'The choices, comma separated', type: 'string', required: true),
+  },
+  onIntent: (parameters) async {
+    await Vable.say(parameters['question']);
+    final choice = await showQuickReplies(parameters['question'], parameters['options']);
+    return 'The user chose $choice';
+  },
+)
+```
+
 ## What the agent can do
 
 The agent reads the screen through Flutter's semantics tree, the same view a screen reader gets. It can tap, type, scroll, move sliders and go back, on the page on top and any dialog over it. Controls need a text label or a tooltip for it to find them, so anything that works with a screen reader works with the agent. A slider or field with no label of its own takes the text just before it, as in a `Row` of `Text('Sugar')` and a `Slider`. A `Slider` reads as a percentage unless you give it a `semanticFormatterCallback`, so give it one when its value means something else, such as a quantity. In debug builds the SDK logs each screen's controls that have no label, so you can find them.

@@ -56,9 +56,18 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
       Vable.shared.setCallPillPosition(position == "top" ? .top : .bottom)
       result(true)
 
+    case "cancelTurn":
+      Task { @MainActor in Vable.shared.cancelTurn() }
+      result(true)
+
+    case "say":
+      let text = (call.arguments as? [String: Any])?["text"] as? String ?? ""
+      Task { @MainActor in Vable.shared.say(text) }
+      result(true)
+
     case "setCallStyle":
       let style = (call.arguments as? [String: Any])?["style"] as? String
-      Vable.shared.setCallStyle(style == "pill" ? .pill : .glow)
+      Vable.shared.setCallStyle(VableCallStyle(rawValue: style ?? "") ?? .glow)
       result(true)
 
     case "setGlowColor":
@@ -335,6 +344,34 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
   public func onVoiceChatStarted() {
     DispatchQueue.main.async { [weak self] in
       self?.channel?.invokeMethod("onVoiceChatStarted", arguments: nil)
+    }
+  }
+
+  public func onAssistantText(_ text: String, isFinal: Bool) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onAssistantText", arguments: ["text": text, "isFinal": isFinal])
+    }
+  }
+
+  public func onAgentState(_ state: String) {
+    channel?.invokeMethod("onAgentState", arguments: ["state": state])
+  }
+
+  public func onUserTranscript(_ text: String, isFinal: Bool) {
+    channel?.invokeMethod("onUserTranscript", arguments: ["text": text, "isFinal": isFinal])
+  }
+
+  public func onUserSpeechStarted() {
+    channel?.invokeMethod("onUserSpeechStarted", arguments: nil)
+  }
+
+  public func onUserInterrupted() {
+    channel?.invokeMethod("onUserInterrupted", arguments: nil)
+  }
+
+  public func onVoiceLevels(agent: Float, user: Float) {
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onVoiceLevels", arguments: ["agent": agent, "user": user])
     }
   }
 

@@ -156,4 +156,15 @@ abstract class VableFlutterPlatform extends PlatformInterface {
   Future<void> setChatButtonVisible(bool visible) {
     throw UnimplementedError('setChatButtonVisible() has not been implemented.');
   }
+
+  /// Stops the agent's turn on the server: its speech, its reply and the tool
+  /// calls it's waiting on.
+  Future<void> cancelTurn() {
+    throw UnimplementedError('cancelTurn() has not been implemented.');
+  }
+
+  /// Has the agent say [text] word for word.
+  Future<void> say(String text) {
+    throw UnimplementedError('say() has not been implemented.');
+  }
 }

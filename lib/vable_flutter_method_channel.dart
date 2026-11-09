@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'src/agent_control.dart';
 import 'vable_flutter.dart';
 import 'vable_flutter_platform_interface.dart';
 
@@ -22,10 +23,31 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
         final url = call.arguments['url'] as String?;
         if (url != null) {
           final toolId = call.arguments['toolId'] as String?;
-          await _withFrames(toolId, () => Vable.handleNavigationEvent(url, toolId: toolId));
+          await _withFrames(toolId, () => _navigate(url, toolId));
         } else {
           VableLogger.error('[VableFlutter] Warning: onNavigate called without url argument');
         }
+      case 'onAssistantText':
+        _control.onAssistantText(
+          call.arguments?['text'] as String? ?? '',
+          isFinal: call.arguments?['isFinal'] as bool? ?? false,
+        );
+      case 'onAgentState':
+        _control.onEngineState(call.arguments?['state'] as String? ?? '');
+      case 'onUserTranscript':
+        _control.onUserTranscript(
+          call.arguments?['text'] as String? ?? '',
+          isFinal: call.arguments?['isFinal'] as bool? ?? false,
+        );
+      case 'onUserSpeechStarted':
+        _control.onUserSpeechStarted();
+      case 'onUserInterrupted':
+        _control.onUserInterrupted();
+      case 'onVoiceLevels':
+        _control.onVoiceLevels(
+          (call.arguments?['agent'] as num?)?.toDouble() ?? 0,
+          (call.arguments?['user'] as num?)?.toDouble() ?? 0,
+        );
       case 'onVoiceChatEnded':
         Vable.handleVoiceChatEnded();
       case 'onVoiceChatStarted':
@@ -65,61 +87,91 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
     }
   }
 
+  VableAgentControl get _control => VableAgentControl.instance;
+
+  /// Opens a route for the agent, once the app lets it, and sends the result.
+  Future<void> _navigate(String url, String? toolId) async {
+    final actionId = toolId ?? _control.localId();
+    final waited = await _control.beforeAct(VableAction(
+      id: actionId,
+      kind: VableActionKind.navigate,
+      tool: 'navigate',
+      args: {'url': url},
+    ));
+    final result = waited ?? await Vable.navigateForAgent(url);
+    await Vable.sendToolResult(
+      toolName: 'navigate',
+      toolId: toolId,
+      result: _control.finish(actionId, result),
+    );
+  }
+
   /// Does what the agent asked for and sends it the result.
   Future<void> _runIntent(String intentId, Map<String, dynamic> parameters, String? toolId) async {
-    if (intentId == 'clickElement') {
-      final elementId = parameters['id']?.toString();
-      if (elementId != null) {
-        try {
-          final result = await ScreenScannerManager().clickForAgent(elementId);
-          Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: result);
-        } catch (e) {
-          VableLogger.error('[VableFlutter] clickElement failed: $e');
-          Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: "Failed: $e");
-        }
-      } else {
-        VableLogger.error('[VableFlutter] clickElement intent missing "id" parameter');
-        Vable.sendToolResult(toolName: "clickElement", toolId: toolId, result: "Failed: no element was given");
-      }
-    } else if (intentId == 'inputText') {
-      final elementId = parameters['id']?.toString();
-      final text = parameters['text']?.toString();
-      if (elementId != null && text != null) {
-        try {
-          final result = await ScreenScannerManager().inputForAgent(elementId, text);
-          Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: result);
-        } catch (e) {
-          VableLogger.error('[VableFlutter] inputText failed: $e');
-          Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: "Failed: $e");
-        }
-      } else {
-        VableLogger.error('[VableFlutter] inputText intent missing "id" or "text" parameter');
-        Vable.sendToolResult(toolName: "inputText", toolId: toolId, result: "Failed: no field or text was given");
-      }
-    } else if (intentId == 'goBack') {
-      final result = await ScreenScannerManager().goBackForAgent();
-      Vable.sendToolResult(toolName: "goBack", toolId: toolId, result: result);
-    } else if (intentId == 'adjustSlider') {
-      final elementId = parameters['id']?.toString();
-      if (elementId == null) {
-        Vable.sendToolResult(toolName: "adjustSlider", toolId: toolId, result: "Failed: no slider was given");
-      } else {
-        final result = await ScreenScannerManager().adjustForAgent(
+    final actionId = toolId ?? _control.localId();
+    String result;
+    try {
+      result = await _resultOf(intentId, parameters, actionId);
+    } catch (e) {
+      VableLogger.error('[VableFlutter] $intentId failed: $e');
+      result = 'Failed: $e';
+    }
+    await Vable.sendToolResult(
+      toolName: intentId,
+      toolId: toolId,
+      result: _control.finish(actionId, result),
+    );
+  }
+
+  Future<String> _resultOf(String intentId, Map<String, dynamic> parameters, String actionId) async {
+    final scanner = ScreenScannerManager();
+    final elementId = parameters['id']?.toString();
+    switch (intentId) {
+      case 'clickElement':
+        if (elementId == null) return 'Failed: no element was given';
+        return scanner.clickForAgent(elementId, actionId: actionId);
+      case 'inputText':
+        final text = parameters['text']?.toString();
+        if (elementId == null || text == null) return 'Failed: no field or text was given';
+        return scanner.inputForAgent(elementId, text, actionId: actionId);
+      case 'goBack':
+        return scanner.goBackForAgent(actionId: actionId);
+      case 'adjustSlider':
+        if (elementId == null) return 'Failed: no slider was given';
+        return scanner.adjustForAgent(
           elementId,
           up: parameters['direction']?.toString() != 'down',
           steps: num.tryParse('${parameters['steps']}')?.toInt() ?? 1,
           target: num.tryParse('${parameters['target']}'),
+          actionId: actionId,
         );
-        Vable.sendToolResult(toolName: "adjustSlider", toolId: toolId, result: result);
-      }
-    } else if (intentId == 'scrollScreen') {
-      final result = await ScreenScannerManager().scrollForAgent(
-        down: parameters['direction']?.toString() != 'up',
-      );
-      Vable.sendToolResult(toolName: "scrollScreen", toolId: toolId, result: result);
-    } else {
-      await Vable.handleIntentEvent(intentId, parameters, toolId: toolId);
+      case 'scrollScreen':
+        return scanner.scrollForAgent(
+          down: parameters['direction']?.toString() != 'up',
+          actionId: actionId,
+        );
+      case 'pointAt':
+        if (elementId == null) return 'Failed: no element was given';
+        return scanner.pointAtForAgent(elementId, actionId: actionId);
+      default:
+        final waited = await _control.beforeAct(VableAction(
+          id: actionId,
+          kind: VableActionKind.intent,
+          tool: intentId,
+          args: parameters,
+        ));
+        return waited ?? await Vable.runIntentForAgent(intentId, parameters);
     }
+  }
+
+  @override
+  Future<void> cancelTurn() async {
+    await methodChannel.invokeMethod<bool>('cancelTurn');
+  }
+
+  @override
+  Future<void> say(String text) async {
+    await methodChannel.invokeMethod<bool>('say', {'text': text});
   }
 
   @override

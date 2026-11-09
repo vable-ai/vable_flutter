@@ -95,6 +95,12 @@ class MockVableFlutterPlatform
 
   @override
   Future<void> setChatButtonVisible(bool visible) async => chatCalls.add('chatButton:$visible');
+
+  @override
+  Future<void> cancelTurn() async => chatCalls.add('cancelTurn');
+
+  @override
+  Future<void> say(String text) async => chatCalls.add('say:$text');
 }
 
 void main() {
@@ -170,6 +176,16 @@ void main() {
     await Vable.closeChat();
 
     expect(platform.chatCalls, ['send:Where is my order?', 'startNewChat', 'chatButton:false', 'closeChat']);
+  });
+
+  test('cancelling and saying reach the native SDK', () async {
+    final platform = MockVableFlutterPlatform();
+    VableFlutterPlatform.instance = platform;
+
+    await Vable.say('Which dates work for you?');
+    await Vable.cancelCurrentTask();
+
+    expect(platform.chatCalls, ['say:Which dates work for you?', 'cancelTurn']);
   });
 
   test('chat updates from the native side reach the stream', () async {
