@@ -1,6 +1,6 @@
-## Unreleased
+## 0.0.8
 
-Needs the iOS SDK and Android SDK releases after 0.0.8 and 0.0.1+9, which add the no-UI call style and pass on what a call is doing, and an engine that sends the agent's state and the user's transcript. Until they're out, build against local copies of the SDKs.
+Needs the iOS SDK 0.0.9 and the Android SDK 0.0.1+10. The agent's state, what the user says, `say` and cancelling also need the engine that sends them, which dev and prod have.
 
 * Draw the call yourself: `Vable.setCallStyle(VableCallStyle.none)` shows nothing native, and `Vable.events` reports the agent's state, its reply as it arrives, mic levels, and each action it takes on the screen.
 * Pace the agent: `Vable.setActionGate` runs before each action so you can show what's coming or skip it, `Vable.setTyping` types a character at a time, and `Vable.pauseActions`, `resumeActions` and `cancelCurrentTask` hold or stop it. With no native UI, the user's touches pause it, and it hears what they changed.
