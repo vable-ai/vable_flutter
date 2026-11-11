@@ -188,7 +188,12 @@ class MethodChannelVableFlutter extends VableFlutterPlatform {
     String? accessToken,
   }) async {
     try {
-      final args = <String, dynamic>{'publicKey': publicKey, 'debugLogging': debugLogging};
+      final args = <String, dynamic>{
+        'publicKey': publicKey,
+        'debugLogging': debugLogging,
+        // Sent with the native SDK's logs, so they say they came through Flutter.
+        'wrapperVersion': vableFlutterVersion,
+      };
       if (environment != null) args['environment'] = environment;
       if (accessToken != null) args['accessToken'] = accessToken;
       final result = await methodChannel.invokeMethod<bool>('initialize', args);

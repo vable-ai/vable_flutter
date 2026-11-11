@@ -158,6 +158,26 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
 
   override fun onMethodCall(call: MethodCall, result: Result) {
     when (call.method) {
+      "log" -> {
+        // A line from the Dart side's VableLogger. Recorded for the client logs only; Dart has
+        // already printed it.
+        val message = call.argument<String>("message")
+        if (message != null) {
+          val level = when (call.argument<String>("level")) {
+            "debug" -> Logger.Level.DEBUG
+            "warn" -> Logger.Level.WARN
+            "error" -> Logger.Level.ERROR
+            else -> Logger.Level.INFO
+          }
+          Logger.record(
+            level,
+            message,
+            call.argument<String>("tag") ?: "flutter",
+            call.argument<Map<String, String>>("fields") ?: emptyMap(),
+          )
+        }
+        result.success(null)
+      }
       "getPlatformVersion" -> {
         result.success("Android ${android.os.Build.VERSION.RELEASE}")
       }
@@ -173,6 +193,7 @@ class VableFlutterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugi
         }
         val debugLogging = call.argument<Boolean>("debugLogging") ?: false
         Logger.setDebugEnabled(debugLogging)
+        call.argument<String>("wrapperVersion")?.let { Logger.setWrapper("flutter", it) }
         try {
           // Pass the current activity to ensure ActivityTracker captures FlutterActivity immediately
           // This is critical for screen scanning to work right away, even if initialize is called

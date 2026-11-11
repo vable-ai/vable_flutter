@@ -34,6 +34,9 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     case "initialize":
       handleInitialize(call: call, result: result)
 
+    case "log":
+      handleLog(call: call, result: result)
+
     case "startVoiceChat":
       handleStartVoiceChat(result: result)
 
@@ -156,6 +159,21 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
 
   // MARK: - Method Handlers
 
+  /// A line from the Dart side's VableLogger. Recorded for the client logs only; Dart has
+  /// already printed it.
+  private func handleLog(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let message = args["message"] as? String else {
+      result(nil)
+      return
+    }
+    let level = VableLogLevel(rawValue: args["level"] as? String ?? "") ?? .info
+    let tag = args["tag"] as? String ?? "flutter"
+    let fields = args["fields"] as? [String: String] ?? [:]
+    Logger.shared.record(level: level, message: message, tag: tag, fields: fields)
+    result(nil)
+  }
+
   private func handleInitialize(call: FlutterMethodCall, result: @escaping FlutterResult) {
     guard let args = call.arguments as? [String: Any],
           let publicKey = args["publicKey"] as? String else {
@@ -164,6 +182,9 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
     }
     let debugLogging = args["debugLogging"] as? Bool ?? false
     Logger.shared.isDebugEnabled = debugLogging
+    if let wrapperVersion = args["wrapperVersion"] as? String {
+      Logger.shared.setWrapper(name: "flutter", version: wrapperVersion)
+    }
 
     let environment: Vable.VableEnvironment
     if let envString = args["environment"] as? String, envString == "dev" {
