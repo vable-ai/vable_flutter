@@ -1,3 +1,10 @@
+## 0.0.9
+
+Needs the iOS SDK 0.0.10 and the Android SDK 0.0.1+11.
+
+* The welcome is spoken over the call: a new call asks for the project's welcome once the call can hear the user, so on iOS it's no longer cut off when the microphone comes on, and the user can talk over it. A resumed conversation isn't greeted.
+* The plugin's own log lines go to the native SDK, which can send them to Vable with its own when the project's client log level asks for them. `VableLogger` takes an optional `tag` and `fields`, and has `warn`.
+
 ## 0.0.8
 
 Needs the iOS SDK 0.0.9 and the Android SDK 0.0.1+10. The agent's state, what the user says, `say` and cancelling also need the engine that sends them, which dev and prod have.
