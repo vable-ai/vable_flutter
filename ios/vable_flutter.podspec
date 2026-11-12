@@ -15,7 +15,7 @@ Flutter plugin for Vable AI SDK - provides real-time AI voice chat with context-
   s.source           = { :path => '.' }
   s.source_files = 'vable_flutter/Sources/vable_flutter/**/*.swift'
   s.dependency 'Flutter'
-  s.dependency 'VableAI', '>= 0.0.10'
+  s.dependency 'VableAI', '>= 0.0.11'
   s.platform = :ios, '15.0'
 
   # Flutter.framework does not contain a i386 slice.

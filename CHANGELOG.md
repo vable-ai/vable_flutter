@@ -1,3 +1,10 @@
+## 0.0.10
+
+Needs the iOS SDK 0.0.11 and the Android SDK 0.0.1+12.
+
+* Every call is greeted, a reopened conversation too, as the web widget does. 0.0.9 only greeted a new conversation, so most calls stayed silent until the user spoke.
+* With the engine on dev and prod since 12 November, calls connect about a second sooner and the welcome starts once the user can hear it, so its first words are no longer lost.
+
 ## 0.0.9
 
 Needs the iOS SDK 0.0.10 and the Android SDK 0.0.1+11.

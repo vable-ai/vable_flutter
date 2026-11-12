@@ -7,7 +7,7 @@ import PackageDescription
 let localSDK = ProcessInfo.processInfo.environment["VABLE_SWIFT_LOCAL"]
 let vableSDK: Package.Dependency =
     localSDK.map { .package(path: $0) }
-    ?? .package(url: "https://github.com/vable-ai/vable-swift.git", from: "0.0.10")
+    ?? .package(url: "https://github.com/vable-ai/vable-swift.git", from: "0.0.11")
 let vableSDKName = localSDK.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "vable-swift"
 
 let package = Package(
