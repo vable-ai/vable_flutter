@@ -224,8 +224,11 @@ public class VableFlutterPlugin: NSObject, FlutterPlugin, VableNavigationDelegat
           config: Vable.VoiceChatConfig(autoStartScreenScanning: false)
         )
         await MainActor.run {
-          Logger.shared.info("Voice chat started successfully")
-          result(true)
+          // A call hung up while it connected returns without starting. Reporting it as
+          // started told Dart a call had begun that was already over.
+          let started = Vable.shared.isVoiceChatActive()
+          Logger.shared.info(started ? "Voice chat started successfully" : "Voice chat ended before it started")
+          result(started)
         }
       } catch let error as VableError {
         await MainActor.run {
