@@ -1,3 +1,10 @@
+## 0.0.11
+
+Needs the iOS SDK 0.0.12 and the Android SDK 0.0.1+13.
+
+* `endVoiceChat` ends a call that's still connecting. On iOS it was ignored, so a call the app gave up on kept the microphone open, for good if it never connected.
+* A call that can't connect ends instead of staying at "connecting": on iOS each setup step waits at most 10 seconds for the engine, and on Android the call is ended after 20 seconds. A failed setup closes the microphone.
+
 ## 0.0.10
 
 Needs the iOS SDK 0.0.11 and the Android SDK 0.0.1+12.
