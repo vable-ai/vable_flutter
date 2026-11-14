@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// The version of this package, sent with the SDK's logs.
-const String vableFlutterVersion = '0.0.11';
+const String vableFlutterVersion = '0.0.12';
 
 /// Controls whether Vable SDK debug logs are printed, and forwards every log
 /// line to the native SDK.

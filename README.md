@@ -27,7 +27,7 @@ dependencies:
   vable_flutter:
     git:
       url: https://github.com/vable-ai/vable_flutter.git
-      ref: v0.0.11
+      ref: v0.0.12
 ```
 
 ## Setup

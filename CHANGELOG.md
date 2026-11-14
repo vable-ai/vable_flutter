@@ -1,3 +1,12 @@
+## 0.0.12
+
+Needs the iOS SDK 0.0.13 and the Android SDK 0.0.1+13.
+
+* `startVoiceChat` no longer reports a call as started on iOS when it was hung up while connecting, so the app isn't told about a call that never happened.
+* On iOS, `endVoiceChat` called straight after `startVoiceChat` ends the call. Before, a hang-up in the first moments was lost and the call went on to open the microphone.
+* On iOS, a call whose setup fails no longer stays at "connecting".
+* With the engine on dev and prod since 13 November, when its side of a call fails to set up, the engine tries again, up to three times, instead of failing the call. This was why calling back a few seconds after hanging up often failed.
+
 ## 0.0.11
 
 Needs the iOS SDK 0.0.12 and the Android SDK 0.0.1+13.
